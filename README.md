@@ -11,14 +11,14 @@ Aplikacja webowa do planowania spotkań i zarządzania wydatkami grupowymi.
 ### Krok 1: Pobranie repozytorium
 Otwórz terminal i sklonuj projekt:
 \`\`\`
-git clone https://github.com/Kacperskiba/FriendSync.git
+git clone https://github.com/Kacperskiba/FriendSync.git 
 cd FriendSync
 \`\`\`
 
 ### Krok 2: Uruchomienie Backendu (FastAPI)
 Otwórz nowy terminal, wejdź do folderu backendu i skonfiguruj środowisko:
 \`\`\`
-cd backend
+cd backend \t
 python -m venv venv
 \`\`\`
 Aktywuj środowisko:
