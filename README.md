@@ -18,7 +18,8 @@ cd FriendSync
 ### Krok 2: Uruchomienie Backendu (FastAPI)
 Otwórz nowy terminal, wejdź do folderu backendu i skonfiguruj środowisko:
 \`\`\`
-cd backend \t
+cd backend 
+
 python -m venv venv
 \`\`\`
 Aktywuj środowisko:
