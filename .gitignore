@@ -7,7 +7,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 backend/venv/
-backend/.env
+backend/app/.env
 
 # Frontend
 frontend/node_modules/
