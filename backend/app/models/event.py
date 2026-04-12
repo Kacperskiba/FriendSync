@@ -10,16 +10,17 @@ class Event(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
-
-    # Kto założył to wydarzenie? (Klucz obcy do tabeli users)
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relacje
+    # Relacje - SPRAWDŹ TE LINIE:
     creator = relationship("User", back_populates="created_events")
     participants = relationship("EventParticipant", back_populates="event")
+    expenses = relationship("Expense", back_populates="event")
 
+    # TEGO BRAKOWAŁO (dlatego miałeś KeyError):
+    locations = relationship("LocationProposal", back_populates="event")
+    messages = relationship("Message", back_populates="event")
 
 class EventParticipant(Base):
     __tablename__ = "event_participants"
@@ -38,6 +39,3 @@ class EventParticipant(Base):
     # Relacje
     event = relationship("Event", back_populates="participants")
     user = relationship("User", back_populates="participations")
-    expenses = relationship("Expense", back_populates="event")
-    locations = relationship("LocationProposal", back_populates="event")
-    messages = relationship("Message", back_populates="event")

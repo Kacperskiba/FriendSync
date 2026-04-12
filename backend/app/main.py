@@ -4,6 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.models import user
 from app.api import user_routes
+from app.api import event_routes
+from app.api import location_routes
+from app.api import expense_routes
+from app.api import message_routes
 from app.models import user, event, expense, location, message
 
 Base.metadata.create_all(bind=engine)
@@ -28,6 +32,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(user_routes.router)
+app.include_router(event_routes.router)
+app.include_router(location_routes.router)
+app.include_router(expense_routes.router)
+app.include_router(message_routes.router)
 
 @app.get("/")
 async def root():
