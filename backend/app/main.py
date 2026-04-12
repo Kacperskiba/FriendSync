@@ -5,6 +5,7 @@ from app.core.database import engine, Base
 from app.models import user
 from app.api import user_routes
 from app.api import event_routes
+from app.api import location_routes
 from app.models import user, event, expense, location, message
 
 Base.metadata.create_all(bind=engine)
@@ -30,6 +31,8 @@ app.add_middleware(
 )
 app.include_router(user_routes.router)
 app.include_router(event_routes.router)
+app.include_router(location_routes.router)
+
 @app.get("/")
 async def root():
     return {"message": "Witaj w FriendSync API! Serwer działa poprawnie."}
