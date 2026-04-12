@@ -40,3 +40,4 @@ class EventParticipant(Base):
     user = relationship("User", back_populates="participations")
     expenses = relationship("Expense", back_populates="event")
     locations = relationship("LocationProposal", back_populates="event")
+    messages = relationship("Message", back_populates="event")

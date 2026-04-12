@@ -19,3 +19,4 @@ class User(Base):
     expense_shares = relationship("ExpenseShare", back_populates="user")
     proposed_locations = relationship("LocationProposal", back_populates="creator")
     location_votes = relationship("LocationVote", back_populates="user")
+    messages = relationship("Message", back_populates="author")

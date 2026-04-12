@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.models import user
 from app.api import user_routes
-
+from app.models import user, event, expense, location, message
 
 Base.metadata.create_all(bind=engine)
 
