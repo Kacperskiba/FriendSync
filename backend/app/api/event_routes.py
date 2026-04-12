@@ -9,6 +9,9 @@ from app.schemas.event import EventCreate, EventResponse
 from app.crud.event import create_event, get_user_events, get_event, get_participant, add_user_to_event
 from app.crud.user import get_user_by_email
 from app.models.user import User
+
+class EventInvite(BaseModel):
+    email: str
 router = APIRouter(prefix="/api/events", tags=["Events"])
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
