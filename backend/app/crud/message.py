@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload # <--- DODANO joinedload
 from app.models.message import Message
 from app.schemas.message import MessageCreate
 
@@ -15,5 +15,6 @@ def create_message(db: Session, event_id: int, user_id: int, message: MessageCre
     return db_message
 
 def get_event_messages(db: Session, event_id: int):
-    """Pobiera wszystkie wiadomości dla wydarzenia, posortowane od najstarszej do najnowszej."""
-    return db.query(Message).filter(Message.event_id == event_id).order_by(Message.created_at.asc()).all()
+    """Pobiera wiadomości WRAZ z danymi autora."""
+    # Używamy .options(joinedload(...)), aby baza od razu dociągnęła nazwę użytkownika
+    return db.query(Message).options(joinedload(Message.author)).filter(Message.event_id == event_id).order_by(Message.created_at.asc()).all()
