@@ -11,6 +11,9 @@ from app.crud.user import get_user_by_email
 from app.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
 from app.crud.message import create_message, get_event_messages
+from app.schemas.expense import ExpenseCreate, ExpenseResponse, FinanceSummaryResponse
+from app.crud.expense import create_expense, get_event_expenses, calculate_finance_summary
+
 
 class EventInvite(BaseModel):
     email: str
@@ -110,3 +113,59 @@ def read_event_messages(
         raise HTTPException(status_code=403, detail="Nie masz dostępu do czatu tego wydarzenia.")
 
     return get_event_messages(db=db, event_id=event_id)
+
+
+# --- FINANSE: DODAWANIE WYDATKU ---
+@router.post("/{event_id}/expenses", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
+def add_event_expense(
+        event_id: int,
+        expense: ExpenseCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Dodaje nowy wydatek i dzieli go na uczestników."""
+    # 1. Sprawdzamy, czy użytkownik ma dostęp do wydarzenia
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do tego wydarzenia.")
+
+    # Małe zabezpieczenie: Sprawdzamy czy suma długów nie przekracza kwoty paragonu
+    total_shares = sum(share.amount for share in expense.shares)
+    if total_shares > expense.amount:
+        raise HTTPException(status_code=400, detail="Suma długów jest większa niż całkowita kwota wydatku!")
+
+    # 2. Zapisujemy wydatek w bazie
+    return create_expense(db=db, event_id=event_id, payer_id=current_user.id, expense_data=expense)
+
+
+# --- FINANSE: ODCZYTYWANIE WYDATKÓW ---
+@router.get("/{event_id}/expenses", response_model=List[ExpenseResponse])
+def read_event_expenses(
+        event_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Pobiera historię wszystkich wydatków w wydarzeniu."""
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do tego wydarzenia.")
+
+    return get_event_expenses(db=db, event_id=event_id)
+
+
+# --- FINANSE: PODSUMOWANIE I WYRÓWNANIE DŁUGÓW ---
+@router.get("/{event_id}/finances/summary", response_model=FinanceSummaryResponse)
+def get_event_finance_summary(
+        event_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    Oblicza całkowity koszt wydarzenia i generuje listę przelewów potrzebnych
+    do wyrównania wszystkich rachunków między uczestnikami.
+    """
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do tego wydarzenia.")
+
+    return calculate_finance_summary(db=db, event_id=event_id)
