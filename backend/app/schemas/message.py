@@ -1,9 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
+# To wysyła React (tylko treść)
 class MessageCreate(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=2000, description="Treść wiadomości")
 
+# To zwraca serwer (wszystkie szczegóły)
 class MessageResponse(BaseModel):
     id: int
     event_id: int
@@ -11,5 +13,4 @@ class MessageResponse(BaseModel):
     content: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
