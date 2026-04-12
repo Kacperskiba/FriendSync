@@ -9,6 +9,8 @@ from app.schemas.event import EventCreate, EventResponse
 from app.crud.event import create_event, get_user_events, get_event, get_participant, add_user_to_event
 from app.crud.user import get_user_by_email
 from app.models.user import User
+from app.schemas.message import MessageCreate, MessageResponse
+from app.crud.message import create_message, get_event_messages
 
 class EventInvite(BaseModel):
     email: str
@@ -74,3 +76,37 @@ def invite_friend_to_event(
     add_user_to_event(db=db, event_id=event_id, user_id=friend.id)
 
     return {"message": f"Użytkownik {friend.username} został dodany do wydarzenia!"}
+
+
+# --- CZAT: WYSYŁANIE WIADOMOŚCI ---
+@router.post("/{event_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+def send_event_message(
+        event_id: int,
+        message: MessageCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Wysyła nową wiadomość na czacie wydarzenia."""
+    # 1. Sprawdzamy czy użytkownik ma dostęp (czy jest uczestnikiem)
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do czatu tego wydarzenia.")
+
+    # 2. Tworzymy wiadomość
+    return create_message(db=db, event_id=event_id, user_id=current_user.id, message=message)
+
+
+# --- CZAT: ODCZYTYWANIE WIADOMOŚCI ---
+@router.get("/{event_id}/messages", response_model=List[MessageResponse])
+def read_event_messages(
+        event_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Pobiera całą historię czatu dla wydarzenia."""
+    # 1. Ponownie - bramkarz sprawdza dostęp do wydarzenia
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do czatu tego wydarzenia.")
+
+    return get_event_messages(db=db, event_id=event_id)
