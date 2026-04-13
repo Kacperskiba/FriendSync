@@ -121,6 +121,19 @@ export default function Dashboard() {
                 <h2 className="text-xl font-bold mb-2 group-hover:text-blue-400 transition-colors">{event.title}</h2>
                 {event.description && <p className="text-gray-400 text-sm line-clamp-2">{event.description}</p>}
 
+                <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // zapobiega wejściu w detale wydarzenia
+                        navigate(`/events/${event.id}/map`);
+                      }}
+                      className="text-xs bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded transition-colors"
+                    >
+                      Otwórz Mapę 📍
+                    </button>
+                    <span className="text-xs text-gray-500">ID: {event.id}</span>
+                </div>
+
                 <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center text-xs text-gray-500">
                     <span>ID: {event.id}</span>
                     <span>Utworzono: {new Date(event.created_at).toLocaleDateString()}</span>
