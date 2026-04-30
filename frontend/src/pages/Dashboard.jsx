@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import {useNavigate} from 'react-router-dom';
 
 const API_URL = "http://127.0.0.1:8000/api/events";
 const FRIENDS_API = "http://127.0.0.1:8000/api/friends";
 const NOTIF_API = "http://127.0.0.1:8000/api/notifications";
+const BASE_URL = "http://127.0.0.1:8000";
 
 export default function Dashboard() {
     const [events, setEvents] = useState([]);
@@ -14,10 +15,11 @@ export default function Dashboard() {
     // Stany Modali i Menu
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-    const [newEventData, setNewEventData] = useState({ title: '', description: '' });
+    const [newEventData, setNewEventData] = useState({title: '', description: ''});
 
     // Inicjalizacja z localStorage
     const [username, setUsername] = useState(localStorage.getItem('username') || 'Użytkownik');
+    const [profileImage, setProfileImage] = useState(null);
 
     // Stany: Powiadomienia
     const [notifications, setNotifications] = useState([]);
@@ -48,10 +50,11 @@ export default function Dashboard() {
 
         const fetchUserProfile = async () => {
             try {
-                const res = await axios.get("http://127.0.0.1:8000/api/users/me", {
-                    headers: { Authorization: `Bearer ${token}` }
+                const res = await axios.get(`${BASE_URL}/api/users/me`, {
+                    headers: {Authorization: `Bearer ${token}`}
                 });
                 setUsername(res.data.username);
+                setProfileImage(res.data.profile_image); // Pobieramy zdjęcie z backendu
                 localStorage.setItem('username', res.data.username);
             } catch (err) {
                 console.error("Błąd profilu:", err);
@@ -61,10 +64,10 @@ export default function Dashboard() {
         const fetchInitialData = async () => {
             try {
                 const [eventsRes, notifsRes, friendsRes, pendingRes] = await Promise.all([
-                    axios.get(API_URL, { headers: { Authorization: `Bearer ${token}` } }),
-                    axios.get(NOTIF_API, { headers: { Authorization: `Bearer ${token}` } }),
-                    axios.get(FRIENDS_API, { headers: { Authorization: `Bearer ${token}` } }),
-                    axios.get(`${FRIENDS_API}/pending`, { headers: { Authorization: `Bearer ${token}` } })
+                    axios.get(API_URL, {headers: {Authorization: `Bearer ${token}`}}),
+                    axios.get(NOTIF_API, {headers: {Authorization: `Bearer ${token}`}}),
+                    axios.get(FRIENDS_API, {headers: {Authorization: `Bearer ${token}`}}),
+                    axios.get(`${FRIENDS_API}/pending`, {headers: {Authorization: `Bearer ${token}`}})
                 ]);
                 setEvents(eventsRes.data);
                 setNotifications(notifsRes.data);
@@ -99,11 +102,11 @@ export default function Dashboard() {
         const token = localStorage.getItem('token');
         try {
             const response = await axios.post(API_URL, newEventData, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {Authorization: `Bearer ${token}`}
             });
             setEvents([...events, response.data]);
             setIsModalOpen(false);
-            setNewEventData({ title: '', description: '' });
+            setNewEventData({title: '', description: ''});
         } catch (err) {
             alert("Nie udało się utworzyć wydarzenia.");
         }
@@ -113,8 +116,8 @@ export default function Dashboard() {
         e.preventDefault();
         const token = localStorage.getItem('token');
         try {
-            await axios.post(`${FRIENDS_API}/request`, { friend_email: inviteEmail }, {
-                headers: { Authorization: `Bearer ${token}` }
+            await axios.post(`${FRIENDS_API}/request`, {friend_email: inviteEmail}, {
+                headers: {Authorization: `Bearer ${token}`}
             });
             alert("Zaproszenie wysłane!");
             setInviteEmail('');
@@ -127,7 +130,7 @@ export default function Dashboard() {
         const token = localStorage.getItem('token');
         try {
             await axios.post(`${FRIENDS_API}/${friendshipId}/accept`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {Authorization: `Bearer ${token}`}
             });
             setPendingRequests(prev => prev.filter(req => req.friendship_id !== friendshipId));
             const acceptedReq = pendingRequests.find(req => req.friendship_id === friendshipId);
@@ -143,17 +146,41 @@ export default function Dashboard() {
         const token = localStorage.getItem('token');
         try {
             await axios.put(`${NOTIF_API}/${notifId}/read`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {Authorization: `Bearer ${token}`}
             });
-            setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
-        } catch (err) {}
+            setNotifications(prev => prev.map(n => n.id === notifId ? {...n, is_read: true} : n));
+        } catch (err) {
+        }
     };
 
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
+    const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10") => {
+        if (imageUrl) {
+            return (
+                <img
+                    src={`${BASE_URL}/${imageUrl}`}
+                    alt={name}
+                    className={`${sizeClasses} rounded-xl object-cover border border-white/10 shadow-lg`}
+                    onError={(e) => {
+                        e.target.src = "";
+                        e.target.classList.add('hidden');
+                    }}
+                />
+            );
+        }
+        return (
+            <div
+                className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white`}>
+                {name.substring(0, 1).toUpperCase()}
+            </div>
+        );
+    };
+
     return (
         // RWD KONTENER: Na małych ekranach pozwala na scrollowanie (min-h-screen), a na dużych (xl:h-screen) blokuje je
-        <div className="min-h-screen xl:h-screen bg-[#050505] text-white p-4 sm:p-6 md:p-8 font-sans relative flex flex-col overflow-x-hidden xl:overflow-hidden">
+        <div
+            className="min-h-screen xl:h-screen bg-[#050505] text-white p-4 sm:p-6 md:p-8 font-sans relative flex flex-col overflow-x-hidden xl:overflow-hidden">
 
             {/* Dekoracyjne tło */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
@@ -161,12 +188,14 @@ export default function Dashboard() {
             </div>
 
             {/* HEADER - Z-INDEX 100: Gwarantuje, że menu wysunie się nad WSZYSTKIM innym */}
-            <div className="relative z-[100] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 max-w-[1600px] w-full mx-auto shrink-0">
+            <div
+                className="relative z-[100] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 max-w-[1600px] w-full mx-auto shrink-0">
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase">
                         Friend <span className="text-green-500 font-black">Sync.</span>
                     </h1>
-                    <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.4em] text-gray-600 mt-2">Centrum dowodzenia wyjazdami</p>
+                    <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.4em] text-gray-600 mt-2">Centrum
+                        dowodzenia wyjazdami</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full lg:w-auto">
@@ -177,7 +206,8 @@ export default function Dashboard() {
                     >
                         🔔
                         {unreadCount > 0 && (
-                            <span className="absolute top-2 right-2 md:right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0f0f0f]"></span>
+                            <span
+                                className="absolute top-2 right-2 md:right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0f0f0f]"></span>
                         )}
                     </button>
 
@@ -191,28 +221,40 @@ export default function Dashboard() {
 
                     {/* MENU UŻYTKOWNIKA */}
                     <div className="relative w-full sm:w-auto mt-2 sm:mt-0" ref={menuRef}>
-                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 bg-[#0f0f0f] border border-white/5 p-2 pr-5 rounded-xl md:rounded-2xl hover:border-white/20 transition-all shadow-xl">
+                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 bg-[#0f0f0f] border border-white/5 p-2 pr-5 rounded-xl md:rounded-2xl hover:border-white/20 transition-all shadow-xl">
+                            {/* SZUKAJ TEGO FRAGMENTU W HEADERZE */}
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white">
-                                    {username.substring(0, 1).toUpperCase()}
-                                </div>
+                                {renderAvatar(profileImage, username)} {/* Zamiast starego div z inicjałem */}
                                 <span className="text-[10px] font-black uppercase tracking-widest block">
-                                    {username}
-                                </span>
+                                {username}
+                            </span>
                             </div>
-                            <span className={`text-[8px] transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`}>▼</span>
+                            <span
+                                className={`text-[8px] transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`}>▼</span>
                         </button>
 
                         {isUserMenuOpen && (
-                            <div className="absolute right-0 lg:right-0 left-0 lg:left-auto mt-4 w-full sm:w-56 bg-[#0f0f0f] border border-white/10 rounded-2xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden py-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div
+                                className="absolute right-0 lg:right-0 left-0 lg:left-auto mt-4 w-full sm:w-56 bg-[#0f0f0f] border border-white/10 rounded-2xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden py-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="px-6 py-4 border-b border-white/5 mb-2">
-                                    <p className="text-[8px] font-black uppercase text-gray-600 tracking-[0.2em] mb-1">Zalogowany jako</p>
+                                    <p className="text-[8px] font-black uppercase text-gray-600 tracking-[0.2em] mb-1">Zalogowany
+                                        jako</p>
                                     <p className="text-xs font-black italic text-green-500 truncate">{username}</p>
                                 </div>
-                                <button onClick={() => navigate('/settings')} className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">⚙️ Ustawienia</button>
-                                <button className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">👤 Profil</button>
+                                <button onClick={() => navigate('/settings')}
+                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">⚙️
+                                    Ustawienia
+                                </button>
+                                <button
+                                    className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">👤
+                                    Profil
+                                </button>
                                 <div className="h-px bg-white/5 my-2 mx-4"></div>
-                                <button onClick={handleLogout} className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3">🚪 Wyloguj sesję</button>
+                                <button onClick={handleLogout}
+                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3">🚪
+                                    Wyloguj sesję
+                                </button>
                             </div>
                         )}
                     </div>
@@ -220,7 +262,8 @@ export default function Dashboard() {
             </div>
 
             {/* KONTENER ZAWARTOŚCI - Z-INDEX 40: Jest poniżej Headera */}
-            <div className="relative z-40 flex-1 flex flex-col xl:flex-row gap-8 lg:gap-10 max-w-[1600px] w-full mx-auto min-h-0">
+            <div
+                className="relative z-40 flex-1 flex flex-col xl:flex-row gap-8 lg:gap-10 max-w-[1600px] w-full mx-auto min-h-0">
 
                 {/* LEWA KOLUMNA: WYDARZENIA */}
                 <div className="flex-1 flex flex-col min-w-0 xl:overflow-hidden">
@@ -228,16 +271,21 @@ export default function Dashboard() {
                     <div className="flex-1 xl:overflow-y-auto pr-0 xl:pr-2 pb-6 xl:pb-10 custom-scrollbar">
                         {loading && (
                             <div className="flex flex-col items-center mt-20 gap-4">
-                                <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                                <div
+                                    className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
                             </div>
                         )}
 
-                        {error && <p className="text-red-500 font-black text-center mt-10 uppercase tracking-widest">{error}</p>}
+                        {error &&
+                            <p className="text-red-500 font-black text-center mt-10 uppercase tracking-widest">{error}</p>}
 
                         {!loading && !error && events.length === 0 && (
-                            <div className="text-center mt-10 md:mt-20 p-10 md:p-20 bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] border border-white/5 shadow-2xl">
-                                <p className="text-gray-500 mb-8 font-black uppercase tracking-widest text-xs md:text-sm">Baza jest pusta.</p>
-                                <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto bg-white text-black font-black uppercase text-[10px] md:text-xs tracking-widest px-8 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl hover:bg-green-500 transition-all">
+                            <div
+                                className="text-center mt-10 md:mt-20 p-10 md:p-20 bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] border border-white/5 shadow-2xl">
+                                <p className="text-gray-500 mb-8 font-black uppercase tracking-widest text-xs md:text-sm">Baza
+                                    jest pusta.</p>
+                                <button onClick={() => setIsModalOpen(true)}
+                                        className="w-full sm:w-auto bg-white text-black font-black uppercase text-[10px] md:text-xs tracking-widest px-8 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl hover:bg-green-500 transition-all">
                                     Stwórz pierwsze wydarzenie
                                 </button>
                             </div>
@@ -246,11 +294,15 @@ export default function Dashboard() {
                         {!loading && !error && events.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6 md:gap-8">
                                 {events.map((event) => (
-                                    <div key={event.id} onClick={() => navigate(`/events/${event.id}`)} className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl">
+                                    <div key={event.id} onClick={() => navigate(`/events/${event.id}`)}
+                                         className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl">
                                         <div className="relative z-10">
                                             <div className="flex justify-between items-start mb-6">
-                                                <div className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-lg md:text-xl grayscale group-hover:grayscale-0 transition-all">🗺️</div>
-                                                <span className="text-[8px] md:text-[9px] font-black text-gray-700 uppercase tracking-widest bg-black px-3 py-1 rounded-full border border-white/5">ID: {event.id}</span>
+                                                <div
+                                                    className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-lg md:text-xl grayscale group-hover:grayscale-0 transition-all">🗺️
+                                                </div>
+                                                <span
+                                                    className="text-[8px] md:text-[9px] font-black text-gray-700 uppercase tracking-widest bg-black px-3 py-1 rounded-full border border-white/5">ID: {event.id}</span>
                                             </div>
                                             <h2 className="text-xl md:text-2xl font-black italic tracking-tighter uppercase mb-3 group-hover:text-green-500 transition-colors">
                                                 {event.title}
@@ -260,16 +312,23 @@ export default function Dashboard() {
                                                     {event.description}
                                                 </p>
                                             )}
-                                            <div className="pt-6 border-t border-white/5 flex justify-between items-center">
-                                                <button onClick={(e) => { e.stopPropagation(); navigate(`/events/${event.id}/map`); }} className="text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-black hover:bg-green-600 px-4 py-2 rounded-xl transition-all border border-white/10">
+                                            <div
+                                                className="pt-6 border-t border-white/5 flex justify-between items-center">
+                                                <button onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/events/${event.id}/map`);
+                                                }}
+                                                        className="text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-black hover:bg-green-600 px-4 py-2 rounded-xl transition-all border border-white/10">
                                                     Mapa 📍
                                                 </button>
-                                                <span className="text-[8px] md:text-[9px] text-gray-700 font-black uppercase tracking-widest">
+                                                <span
+                                                    className="text-[8px] md:text-[9px] text-gray-700 font-black uppercase tracking-widest">
                                                     {new Date(event.created_at).toLocaleDateString()}
                                                 </span>
                                             </div>
                                         </div>
-                                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        <div
+                                            className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                     </div>
                                 ))}
                             </div>
@@ -280,12 +339,15 @@ export default function Dashboard() {
                 {/* PRAWA KOLUMNA: SIDEBAR ZNAJOMYCH */}
                 {/* RWD: Na telefonie ma sztywną wysokość np. 500px, na PC rozciąga się na h-full */}
                 <div className="w-full xl:w-[450px] shrink-0 flex flex-col h-[500px] xl:h-full pb-8 xl:pb-0">
-                    <div className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col flex-1 min-h-0">
+                    <div
+                        className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col flex-1 min-h-0">
 
-                        <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase mb-6 shrink-0">Twoja <span className="text-green-500">Ekipa.</span></h2>
+                        <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase mb-6 shrink-0">Twoja <span
+                            className="text-green-500">Ekipa.</span></h2>
 
                         {/* Zakładki */}
-                        <div className="flex flex-col sm:flex-row gap-2 mb-6 bg-black p-1 rounded-2xl border border-white/5 shrink-0">
+                        <div
+                            className="flex flex-col sm:flex-row gap-2 mb-6 bg-black p-1 rounded-2xl border border-white/5 shrink-0">
                             <button
                                 onClick={() => setActiveFriendTab('list')}
                                 className={`flex-1 py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-widest transition-all ${activeFriendTab === 'list' ? 'bg-[#151515] text-white shadow-md' : 'text-gray-500 hover:text-gray-300'}`}
@@ -297,7 +359,8 @@ export default function Dashboard() {
                                 className={`flex-1 py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-widest transition-all ${activeFriendTab === 'pending' ? 'bg-[#151515] text-white shadow-md' : 'text-gray-500 hover:text-gray-300'} flex items-center justify-center gap-2`}
                             >
                                 Oczekujące
-                                {pendingRequests.length > 0 && <span className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[8px]">{pendingRequests.length}</span>}
+                                {pendingRequests.length > 0 && <span
+                                    className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[8px]">{pendingRequests.length}</span>}
                             </button>
                         </div>
 
@@ -305,26 +368,28 @@ export default function Dashboard() {
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                             {activeFriendTab === 'list' && (
                                 <div className="space-y-6">
-                                    <form onSubmit={handleSendFriendRequest} className="flex flex-col sm:flex-row gap-2">
+                                    <form onSubmit={handleSendFriendRequest}
+                                          className="flex flex-col sm:flex-row gap-2">
                                         <input
                                             type="email" required placeholder="E-mail znajomego..."
                                             value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
                                             className="flex-1 bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 min-w-0"
                                         />
-                                        <button type="submit" className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-4 py-3 sm:py-0 rounded-xl md:rounded-2xl transition-all">
+                                        <button type="submit"
+                                                className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-4 py-3 sm:py-0 rounded-xl md:rounded-2xl transition-all">
                                             Zaproś
                                         </button>
                                     </form>
 
                                     <div className="space-y-3 pb-4">
                                         {friends.length === 0 ? (
-                                            <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Brak znajomych na liście</p>
+                                            <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Brak
+                                                znajomych na liście</p>
                                         ) : (
                                             friends.map(friend => (
-                                                <div key={friend.id} className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex items-center gap-4">
-                                                    <div className="w-10 h-10 bg-[#151515] rounded-xl flex items-center justify-center font-black text-green-500 uppercase shrink-0">
-                                                        {friend.username.charAt(0)}
-                                                    </div>
+                                                <div key={friend.id}
+                                                     className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex items-center gap-4">
+                                                    {renderAvatar(friend.profile_image, friend.username)} {/* Zamiast starego div */}
                                                     <div className="min-w-0 flex-1">
                                                         <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{friend.username}</p>
                                                         <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600 truncate">{friend.email}</p>
@@ -339,13 +404,19 @@ export default function Dashboard() {
                             {activeFriendTab === 'pending' && (
                                 <div className="space-y-3 pb-4">
                                     {pendingRequests.length === 0 ? (
-                                        <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Brak oczekujących zaproszeń</p>
+                                        <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Brak
+                                            oczekujących zaproszeń</p>
                                     ) : (
                                         pendingRequests.map(req => (
-                                            <div key={req.friendship_id} className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex flex-col gap-3">
-                                                <div>
-                                                    <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{req.user.username}</p>
-                                                    <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600">chce dołączyć do znajomych</p>
+                                            <div key={req.friendship_id}
+                                                 className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex flex-col gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    {renderAvatar(req.user.profile_image, req.user.username, "w-8 h-8")} {/* Dodane zdjęcie */}
+                                                    <div>
+                                                        <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{req.user.username}</p>
+                                                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600">chce
+                                                            dołączyć do znajomych</p>
+                                                    </div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleAcceptRequest(req.friendship_id)}
@@ -366,31 +437,43 @@ export default function Dashboard() {
 
             {/* MODAL: TWORZENIE WYDARZENIA */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[200] backdrop-blur-xl">
-                    <div className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 w-full max-w-md border border-white/10 shadow-2xl relative">
-                        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 md:top-6 right-6 md:right-8 text-gray-500 hover:text-white font-bold text-xl">✕</button>
-                        <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase text-center mb-6 md:mb-8">Nowy <span className="text-green-500">Projekt.</span></h2>
+                <div
+                    className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[200] backdrop-blur-xl">
+                    <div
+                        className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 w-full max-w-md border border-white/10 shadow-2xl relative">
+                        <button onClick={() => setIsModalOpen(false)}
+                                className="absolute top-4 md:top-6 right-6 md:right-8 text-gray-500 hover:text-white font-bold text-xl">✕
+                        </button>
+                        <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase text-center mb-6 md:mb-8">Nowy <span
+                            className="text-green-500">Projekt.</span></h2>
                         <form onSubmit={handleCreateEvent} className="space-y-4 md:space-y-6">
                             <div>
-                                <label className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Tytuł wyjazdu</label>
+                                <label
+                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Tytuł
+                                    wyjazdu</label>
                                 <input
                                     type="text" required maxLength={100}
                                     className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200"
                                     placeholder="Np. Berlin 2026"
-                                    value={newEventData.title} onChange={(e) => setNewEventData({...newEventData, title: e.target.value})}
+                                    value={newEventData.title}
+                                    onChange={(e) => setNewEventData({...newEventData, title: e.target.value})}
                                 />
                             </div>
                             <div>
-                                <label className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Krótki opis</label>
+                                <label
+                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Krótki
+                                    opis</label>
                                 <textarea
                                     rows={3}
                                     className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 resize-none"
                                     placeholder="O czym warto pamiętać?"
-                                    value={newEventData.description} onChange={(e) => setNewEventData({...newEventData, description: e.target.value})}
+                                    value={newEventData.description}
+                                    onChange={(e) => setNewEventData({...newEventData, description: e.target.value})}
                                 />
                             </div>
                             <div className="pt-2">
-                                <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest py-4 md:py-5 rounded-xl md:rounded-2xl shadow-xl shadow-green-900/20 transition-all">
+                                <button type="submit"
+                                        className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest py-4 md:py-5 rounded-xl md:rounded-2xl shadow-xl shadow-green-900/20 transition-all">
                                     Zapisz
                                 </button>
                             </div>
@@ -402,19 +485,25 @@ export default function Dashboard() {
             {/* MODAL: POWIADOMIENIA */}
             {isNotifOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-start justify-end p-4 md:p-6 z-[200]">
-                    <div className="bg-[#0f0f0f] rounded-[2rem] p-6 w-full max-w-sm border border-white/10 shadow-2xl mt-16 md:mt-20 relative animate-in slide-in-from-right-8 fade-in">
-                        <button onClick={() => setIsNotifOpen(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white font-bold">✕</button>
+                    <div
+                        className="bg-[#0f0f0f] rounded-[2rem] p-6 w-full max-w-sm border border-white/10 shadow-2xl mt-16 md:mt-20 relative animate-in slide-in-from-right-8 fade-in">
+                        <button onClick={() => setIsNotifOpen(false)}
+                                className="absolute top-6 right-6 text-gray-500 hover:text-white font-bold">✕
+                        </button>
                         <h3 className="text-lg md:text-xl font-black italic tracking-tighter uppercase mb-6 border-b border-white/5 pb-4">Aktualności</h3>
 
                         <div className="max-h-[60vh] overflow-y-auto space-y-3 custom-scrollbar">
                             {notifications.length === 0 ? (
-                                <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Wszystko przeczytane</p>
+                                <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Wszystko
+                                    przeczytane</p>
                             ) : (
                                 notifications.map(notif => (
-                                    <div key={notif.id} className={`p-4 rounded-xl md:rounded-2xl border transition-all cursor-default ${notif.is_read ? 'bg-black border-transparent opacity-50' : 'bg-[#151515] border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.05)]'}`}>
+                                    <div key={notif.id}
+                                         className={`p-4 rounded-xl md:rounded-2xl border transition-all cursor-default ${notif.is_read ? 'bg-black border-transparent opacity-50' : 'bg-[#151515] border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.05)]'}`}>
                                         <p className="text-[10px] md:text-xs text-gray-300 font-medium mb-3">{notif.message}</p>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-[8px] font-black uppercase tracking-widest text-gray-600">
+                                            <span
+                                                className="text-[8px] font-black uppercase tracking-widest text-gray-600">
                                                 {new Date(notif.created_at).toLocaleDateString()}
                                             </span>
                                             {!notif.is_read && (

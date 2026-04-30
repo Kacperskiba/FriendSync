@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 
 class FriendRequestCreate(BaseModel):
@@ -8,6 +10,7 @@ class FriendUserResponse(BaseModel):
     username: str
     email: str
     model_config = ConfigDict(from_attributes=True)
+    profile_image: Optional[str] = None
 
 class PendingRequestResponse(BaseModel):
     friendship_id: int
