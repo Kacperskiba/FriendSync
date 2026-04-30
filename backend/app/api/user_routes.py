@@ -6,10 +6,15 @@ from datetime import timedelta
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, create_access_token, get_password_hash
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, Token
 from app.crud.user import get_user_by_email, get_user_by_username, create_user
+import shutil
+import os
+from fastapi import UploadFile, File, Form
+
+
 router = APIRouter(
     prefix="/api/users",
     tags=["Users"]
@@ -17,25 +22,41 @@ router = APIRouter(
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
+async def register_user(
+        email: str = Form(...),
+        username: str = Form(...),
+        password: str = Form(...),
+        profile_image: UploadFile = File(None),  # Zdjęcie opcjonalne
+        db: Session = Depends(get_db)
+):
+    # Sprawdzanie czy użytkownik istnieje (jak wcześniej)
+    if get_user_by_email(db, email):
+        raise HTTPException(status_code=400, detail="Email zajęty")
 
-    db_user_email = get_user_by_email(db, email=user.email)
-    if db_user_email:
-        raise HTTPException(status_code=400, detail="Ten adres email jest już zarejestrowany.")
+    file_path = None
+    if profile_image:
+        # Tworzymy folder jeśli nie istnieje
+        os.makedirs("static/avatars", exist_ok=True)
+        file_path = f"static/avatars/{username}_{profile_image.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(profile_image.file, buffer)
 
-    db_user_username = get_user_by_username(db, username=user.username)
-    if db_user_username:
-        raise HTTPException(status_code=400, detail="Ta nazwa użytkownika jest już zajęta.")
-
-    new_user = create_user(db=db, user=user)
-
+    # Tworzenie użytkownika
+    hashed_password = get_password_hash(password)
+    new_user = User(
+        username=username,
+        email=email,
+        password_hash=hashed_password,
+        profile_image=file_path
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
     return new_user
 
 
 @router.post("/login", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-
-
     user = get_user_by_email(db, email=form_data.username) or get_user_by_username(db, username=form_data.username)
 
     if not user or not verify_password(form_data.password, user.password_hash):
@@ -52,7 +73,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
     return {"access_token": access_token, "token_type": "bearer"}
 
+
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
-
     return current_user

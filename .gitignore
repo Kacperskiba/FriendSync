@@ -17,3 +17,7 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Media / Uploads
+backend/static/avatars/*
+!backend/static/avatars/.gitkeep

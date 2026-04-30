@@ -11,6 +11,7 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    profile_image = Column(String(255), nullable=True)
 
     # --- NOWE RELACJE ---
     created_events = relationship("Event", back_populates="creator")
