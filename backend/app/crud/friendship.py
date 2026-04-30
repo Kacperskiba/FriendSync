@@ -5,15 +5,17 @@ from app.models.user import User
 from app.crud.notification import create_notification
 
 
-def send_friend_request(db: Session, user_id: int, friend_email: str):
+def send_friend_request(db: Session, user_id: int, friend_identifier: str):
     # Pobieramy dane nadawcy, żeby użyć jego nazwy w powiadomieniu
     sender = db.query(User).filter(User.id == user_id).first()
 
-    # Szukamy odbiorcy po emailu
-    friend = db.query(User).filter(User.email == friend_email).first()
+    # Szukamy odbiorcy po emailu LUB nazwie użytkownika
+    friend = db.query(User).filter(
+        (User.email == friend_identifier) | (User.username == friend_identifier)
+    ).first()
 
     if not friend:
-        raise HTTPException(status_code=404, detail="Użytkownik z tym adresem email nie istnieje.")
+        raise HTTPException(status_code=404, detail="Nie znaleziono użytkownika z tym nickiem lub emailem.")
     if friend.id == user_id:
         raise HTTPException(status_code=400, detail="Nie możesz zaprosić samego siebie.")
 
@@ -33,7 +35,6 @@ def send_friend_request(db: Session, user_id: int, friend_email: str):
     db.refresh(new_req)
 
     # --- MAGIA POWIADOMIEŃ ---
-    # Wysyłamy powiadomienie do osoby, którą zapraszamy (friend.id)
     create_notification(
         db=db,
         user_id=friend.id,

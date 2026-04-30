@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 class FriendRequestCreate(BaseModel):
-    friend_email: str
+    friend_identifier: str
 
 class FriendUserResponse(BaseModel):
     id: int

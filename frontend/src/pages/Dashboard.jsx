@@ -29,7 +29,10 @@ export default function Dashboard() {
     const [activeFriendTab, setActiveFriendTab] = useState('list'); // 'list' lub 'pending'
     const [friends, setFriends] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
-    const [inviteEmail, setInviteEmail] = useState('');
+
+    // NOWE STANY: Wyszukiwarka znajomych
+    const [searchQuery, setSearchQuery] = useState('');
+    const [suggestions, setSuggestions] = useState([]);
 
     const navigate = useNavigate();
     const menuRef = useRef(null);
@@ -91,6 +94,27 @@ export default function Dashboard() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [navigate]);
 
+    // NOWY UseEffect: Automatyczne wyszukiwanie użytkowników przy pisaniu (Debounce)
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (searchQuery.length >= 2) {
+                const token = localStorage.getItem('token');
+                try {
+                    const res = await axios.get(`${FRIENDS_API}/search-users?q=${searchQuery}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    setSuggestions(res.data);
+                } catch (err) {
+                    console.error("Błąd wyszukiwania", err);
+                }
+            } else {
+                setSuggestions([]);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery]);
+
     const handleLogout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
@@ -112,15 +136,21 @@ export default function Dashboard() {
         }
     };
 
-    const handleSendFriendRequest = async (e) => {
-        e.preventDefault();
+    // ZAKTUALIZOWANA FUNKCJA: Zapraszanie ze wsparciem wyszukiwarki
+    const handleSendFriendRequest = async (e, directIdentifier = null) => {
+        if (e) e.preventDefault();
+
+        const targetIdentifier = directIdentifier || searchQuery;
+        if (!targetIdentifier.trim()) return;
+
         const token = localStorage.getItem('token');
         try {
-            await axios.post(`${FRIENDS_API}/request`, {friend_email: inviteEmail}, {
+            await axios.post(`${FRIENDS_API}/request`, {friend_identifier: targetIdentifier}, {
                 headers: {Authorization: `Bearer ${token}`}
             });
             alert("Zaproszenie wysłane!");
-            setInviteEmail('');
+            setSearchQuery('');
+            setSuggestions([]);
         } catch (err) {
             alert(err.response?.data?.detail || "Błąd wysyłania zaproszenia");
         }
@@ -171,7 +201,7 @@ export default function Dashboard() {
         }
         return (
             <div
-                className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white`}>
+                className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white shrink-0`}>
                 {name.substring(0, 1).toUpperCase()}
             </div>
         );
@@ -368,18 +398,46 @@ export default function Dashboard() {
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                             {activeFriendTab === 'list' && (
                                 <div className="space-y-6">
-                                    <form onSubmit={handleSendFriendRequest}
-                                          className="flex flex-col sm:flex-row gap-2">
-                                        <input
-                                            type="email" required placeholder="E-mail znajomego..."
-                                            value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
-                                            className="flex-1 bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 min-w-0"
-                                        />
-                                        <button type="submit"
-                                                className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-4 py-3 sm:py-0 rounded-xl md:rounded-2xl transition-all">
-                                            Zaproś
-                                        </button>
-                                    </form>
+
+                                    {/* NOWA SEKCJA WYSZUKIWARKI I ZAPRASZANIA */}
+                                    <div className="relative">
+                                        <form onSubmit={(e) => handleSendFriendRequest(e)} className="flex flex-col sm:flex-row gap-2 relative z-20">
+                                            <input
+                                                type="text" required placeholder="Nick lub e-mail..."
+                                                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="flex-1 bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 min-w-0"
+                                            />
+                                            <button type="submit"
+                                                    className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-4 py-3 sm:py-0 rounded-xl md:rounded-2xl transition-all">
+                                                Zaproś
+                                            </button>
+                                        </form>
+
+                                        {/* DROPDOWN PODPOWIEDZI */}
+                                        {suggestions.length > 0 && (
+                                            <div className="absolute top-[110%] left-0 right-0 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
+                                                {suggestions.map(user => (
+                                                    <div
+                                                        key={user.id}
+                                                        onClick={() => handleSendFriendRequest(null, user.username)}
+                                                        className="p-4 border-b border-white/5 hover:bg-[#252525] cursor-pointer transition-all flex items-center justify-between group"
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            {/* Awatar z Twojej funkcji renderującej */}
+                                                            {renderAvatar(user.profile_image, user.username, "w-10 h-10")}
+                                                            <div>
+                                                                <p className="font-bold text-sm text-gray-200 group-hover:text-green-500 transition-colors">{user.username}</p>
+                                                                <p className="text-[9px] font-black uppercase tracking-widest text-gray-600 mt-1">{user.email}</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-green-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            Zaproś +
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
                                     <div className="space-y-3 pb-4">
                                         {friends.length === 0 ? (
