@@ -202,7 +202,7 @@ export default function EventDetails() {
               onChange={(e) => setNewMessage(e.target.value)}
             />
             <button type="submit" className="bg-blue-600 p-2 rounded-xl hover:bg-blue-500 transition-colors">
-              🚀
+              Wyślij
             </button>
           </form>
         </div>
