@@ -11,7 +11,7 @@ export default function App() {
             <Route path="/" element={<AuthPage/>}/>
             <Route path="/dashboard" element={<Dashboard/>}/>
             <Route path="/events/:id" element={<EventDetails/>}/>
-            <Route path="/events/:id/map" element={<EventMap/>}/>
+            <Route path="/events/:event_id/map" element={<EventMap />} />
             <Route path="/events/:id/finance" element={<EventFinance/>}/>
         </Routes>
     );
