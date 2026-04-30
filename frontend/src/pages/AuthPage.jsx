@@ -28,7 +28,12 @@ export default function AuthPage() {
         params.append('password', formData.password);
 
         const res = await axios.post(`${API_URL}/login`, params);
+
+        // Zapisujemy token i username do pamięci przeglądarki
         localStorage.setItem('token', res.data.access_token);
+        // Sprawdzamy czy backend zwraca username, jeśli nie - używamy maila jako tymczasowy login
+        localStorage.setItem('username', res.data.username || formData.email.split('@')[0]);
+
         navigate('/dashboard');
 
       } else {
@@ -42,27 +47,15 @@ export default function AuthPage() {
         setIsLogin(true);
       }
     } catch (err) {
-      console.error("Pełny błąd z serwera:", err.response?.data);
-      let message = "Coś poszło nie tak";
-      const detail = err.response?.data?.detail;
-
-      if (typeof detail === 'string') {
-        message = detail;
-      } else if (Array.isArray(detail)) {
-        message = detail.map(d => `${d.loc[1]}: ${d.msg}`).join(", ");
-      }
-
-      alert("Błąd: " + message);
+      console.error("Błąd logowania:", err.response?.data);
+      alert("Błąd: " + (err.response?.data?.detail || "Coś poszło nie tak"));
     }
   };
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 font-sans text-white">
       <div className="max-w-md w-full bg-[#0f0f0f] rounded-[3rem] shadow-[0_20px_80px_rgba(0,0,0,0.8)] p-10 border border-white/5 relative overflow-hidden">
-
-        {/* Dekoracyjny blask w tle */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-green-500/5 blur-[100px] rounded-full"></div>
-
         <div className="text-center mb-12">
           <h1 className="text-5xl font-black italic tracking-tighter uppercase mb-2">
             Friend<span className="text-green-500">Sync.</span>
@@ -73,8 +66,6 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-
-          {/* --- POLA TYLKO DLA LOGOWANIA --- */}
           {isLogin && (
             <div className="group">
               <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-2 mb-2 block group-focus-within:text-green-500 transition-colors">
@@ -91,7 +82,6 @@ export default function AuthPage() {
             </div>
           )}
 
-          {/* --- POLA TYLKO DLA REJESTRACJI --- */}
           {!isLogin && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div>
@@ -119,11 +109,8 @@ export default function AuthPage() {
             </div>
           )}
 
-          {/* --- WSPÓLNE POLE HASŁA --- */}
           <div className="group">
-            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-2 mb-2 block group-focus-within:text-green-500 transition-colors">
-              Hasło
-            </label>
+            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-2 mb-2 block group-focus-within:text-green-500 transition-colors">Hasło</label>
             <input
               name="password"
               type="password"
@@ -134,19 +121,13 @@ export default function AuthPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[11px] tracking-[0.2em] py-5 rounded-2xl shadow-[0_10px_40px_rgba(34,197,94,0.2)] transition-all active:scale-[0.97] mt-8"
-          >
+          <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[11px] tracking-[0.2em] py-5 rounded-2xl shadow-[0_10px_40px_rgba(34,197,94,0.2)] transition-all active:scale-[0.97] mt-8">
             {isLogin ? "Zaloguj do bazy" : "Stwórz profil"}
           </button>
         </form>
 
         <div className="mt-10 text-center">
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 hover:text-white transition-colors"
-          >
+          <button onClick={() => setIsLogin(!isLogin)} className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 hover:text-white transition-colors">
             {isLogin ? "Brak konta? Zarejestruj się" : "Masz konto? Wróć do logowania"}
           </button>
         </div>
