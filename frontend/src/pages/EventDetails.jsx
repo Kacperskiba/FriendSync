@@ -10,7 +10,7 @@ export default function EventDetails() {
     const messagesEndRef = useRef(null);
 
     const [event, setEvent] = useState(null);
-    const [participants, setParticipants] = useState([]);
+    const [participants, setParticipants] = useState([]); // Stan dla uczestników
     const [messages, setMessages] = useState([]);
 
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -18,6 +18,7 @@ export default function EventDetails() {
     const [inviteEmail, setInviteEmail] = useState('');
     const [newMessage, setNewMessage] = useState('');
 
+    // 1. Pobieranie danych o wydarzeniu
     const fetchEventData = async () => {
         const token = localStorage.getItem('token');
         try {
@@ -28,6 +29,20 @@ export default function EventDetails() {
             setEvent(currentEvent);
         } catch (err) {
             console.error("Błąd pobierania danych:", err);
+        }
+    };
+
+    // 2. NOWA FUNKCJA: Pobieranie uczestników
+    const fetchParticipants = async () => {
+        const token = localStorage.getItem('token');
+        try {
+            // Zakładam, że masz taki endpoint na backendzie
+            const res = await axios.get(`${API_URL}/${id}/participants`, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            setParticipants(res.data);
+        } catch (err) {
+            console.error("Błąd pobierania uczestników:", err);
         }
     };
 
@@ -43,6 +58,7 @@ export default function EventDetails() {
 
     useEffect(() => {
         fetchEventData();
+        fetchParticipants(); // Wywołujemy pobieranie uczestników przy starcie
         if (isChatOpen) {
             fetchMessages();
             const interval = setInterval(fetchMessages, 3000);
@@ -64,6 +80,7 @@ export default function EventDetails() {
             alert("Zaproszenie wysłane!");
             setIsInviteOpen(false);
             setInviteEmail('');
+            fetchParticipants(); // Odświeżamy listę po zaproszeniu
         } catch (err) {
             alert(err.response?.data?.detail || "Błąd wysyłania zaproszenia");
         }
@@ -143,7 +160,7 @@ export default function EventDetails() {
                     </div>
                 </div>
 
-                {/* KARTA BOCZNA: UCZESTNICY */}
+                {/* KARTA BOCZNA: UCZESTNICY - TUTAJ POPRAWIONE MAPOWANIE */}
                 <div className="bg-[#0f0f0f] rounded-[3rem] p-8 border border-white/5 shadow-2xl h-fit">
                     <div className="flex justify-between items-center mb-8 px-2">
                         <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px]">Ekipa</h3>
@@ -156,21 +173,28 @@ export default function EventDetails() {
                     </div>
 
                     <div className="space-y-3">
-                        <div className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
-                            <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg shadow-green-900/40">
-                                TY
-                            </div>
-                            <div>
-                                <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">Ty</span>
-                                <span className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">Organizator</span>
-                            </div>
-                        </div>
-                        {/* Tu wpadną pozostali uczestnicy z mapowania */}
+                        {participants.length === 0 ? (
+                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest text-center py-4">Ładowanie ekipy...</p>
+                        ) : (
+                            participants.map((user) => (
+                                <div key={user.id} className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
+                                    <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg shadow-green-900/40 uppercase">
+                                        {user.username.substring(0, 2)}
+                                    </div>
+                                    <div>
+                                        <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">{user.username}</span>
+                                        <span className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">
+                                            {user.id === event.owner_id ? "Organizator" : "Uczestnik"}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* MODAL ZAPROSZENIA */}
+            {/* MODAL ZAPROSZENIA I CZAT BEZ ZMIAN... */}
             {isInviteOpen && (
                 <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-6 backdrop-blur-xl">
                     <div className="bg-[#0f0f0f] p-10 rounded-[3rem] border border-white/10 w-full max-w-sm shadow-[0_0_100px_rgba(0,0,0,1)]">
@@ -197,7 +221,6 @@ export default function EventDetails() {
                 </div>
             )}
 
-            {/* OKNO CZATU */}
             {isChatOpen && (
                 <div className="fixed bottom-8 right-8 w-full max-w-md h-[600px] bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,1)] flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10 duration-500">
                     <div className="bg-black p-6 flex justify-between items-center border-b border-white/5">
@@ -233,7 +256,6 @@ export default function EventDetails() {
                     </form>
                 </div>
             )}
-
         </div>
     );
 }
