@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+/* --- STYLOWANIE SCROLLBARA (Mroczny styl) --- */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* Wąski i elegancki pasek */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #0f0f0f; /* Tło paska zlewające się z kontenerami */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #262626; /* Ciemnoszary "chwytak" */
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #22c55e; /* Subtelny, neonowy zielony przy najechaniu myszką! */
+}
