@@ -34,6 +34,11 @@ export default function Dashboard() {
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
 
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editData, setEditData] = useState({username: '', email: '', password: ''});
+    const [editFile, setEditFile] = useState(null);
+    const editFileInputRef = useRef(null);
+
     const navigate = useNavigate();
     const menuRef = useRef(null);
 
@@ -101,7 +106,7 @@ export default function Dashboard() {
                 const token = localStorage.getItem('token');
                 try {
                     const res = await axios.get(`${FRIENDS_API}/search-users?q=${searchQuery}`, {
-                        headers: { Authorization: `Bearer ${token}` }
+                        headers: {Authorization: `Bearer ${token}`}
                     });
                     setSuggestions(res.data);
                 } catch (err) {
@@ -207,6 +212,37 @@ export default function Dashboard() {
         );
     };
 
+    const openEditModal = () => {
+        setEditData({username: username, email: '', password: ''}); // Możesz pobrać email z zapisanego profilu
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateProfile = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+
+        if (editData.username) formData.append('username', editData.username);
+        if (editData.email) formData.append('email', editData.email);
+        if (editData.password) formData.append('password', editData.password);
+        if (editFile) formData.append('profile_image', editFile);
+
+        try {
+            const res = await axios.patch(`${BASE_URL}/api/users/me`, formData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            setUsername(res.data.username);
+            setProfileImage(res.data.profile_image);
+            setIsEditModalOpen(false);
+            alert("Profil zaktualizowany!");
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd aktualizacji");
+        }
+    };
+
     return (
         // RWD KONTENER: Na małych ekranach pozwala na scrollowanie (min-h-screen), a na dużych (xl:h-screen) blokuje je
         <div
@@ -277,8 +313,13 @@ export default function Dashboard() {
                                     Ustawienia
                                 </button>
                                 <button
-                                    className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">👤
-                                    Profil
+                                    onClick={() => {
+                                        setIsUserMenuOpen(false);
+                                        openEditModal();
+                                    }}
+                                    className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3"
+                                >
+                                    👤 Edytuj Profil
                                 </button>
                                 <div className="h-px bg-white/5 my-2 mx-4"></div>
                                 <button onClick={handleLogout}
@@ -401,7 +442,8 @@ export default function Dashboard() {
 
                                     {/* NOWA SEKCJA WYSZUKIWARKI I ZAPRASZANIA */}
                                     <div className="relative">
-                                        <form onSubmit={(e) => handleSendFriendRequest(e)} className="flex flex-col sm:flex-row gap-2 relative z-20">
+                                        <form onSubmit={(e) => handleSendFriendRequest(e)}
+                                              className="flex flex-col sm:flex-row gap-2 relative z-20">
                                             <input
                                                 type="text" required placeholder="Nick lub e-mail..."
                                                 value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
@@ -415,7 +457,8 @@ export default function Dashboard() {
 
                                         {/* DROPDOWN PODPOWIEDZI */}
                                         {suggestions.length > 0 && (
-                                            <div className="absolute top-[110%] left-0 right-0 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
+                                            <div
+                                                className="absolute top-[110%] left-0 right-0 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
                                                 {suggestions.map(user => (
                                                     <div
                                                         key={user.id}
@@ -430,7 +473,8 @@ export default function Dashboard() {
                                                                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-600 mt-1">{user.email}</p>
                                                             </div>
                                                         </div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-green-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <span
+                                                            className="text-[10px] font-black uppercase tracking-widest text-green-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             Zaproś +
                                                         </span>
                                                     </div>
@@ -577,6 +621,65 @@ export default function Dashboard() {
                                 ))
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+            {isEditModalOpen && (
+                <div
+                    className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[210] backdrop-blur-xl">
+                    <div
+                        className="bg-[#0f0f0f] rounded-[2rem] p-8 w-full max-w-md border border-white/10 shadow-2xl relative">
+                        <button onClick={() => setIsEditModalOpen(false)}
+                                className="absolute top-6 right-6 text-gray-500 hover:text-white">✕
+                        </button>
+                        <h2 className="text-2xl font-black italic uppercase text-center mb-8">Edytuj <span
+                            className="text-green-500">Profil.</span></h2>
+
+                        <form onSubmit={handleUpdateProfile} className="space-y-4">
+                            {/* Zmiana zdjęcia */}
+                            <div className="flex flex-col items-center mb-6">
+                                <div
+                                    onClick={() => editFileInputRef.current.click()}
+                                    className="w-24 h-24 rounded-3xl overflow-hidden border-2 border-dashed border-white/10 hover:border-green-500 cursor-pointer transition-all"
+                                >
+                                    {editFile ? (
+                                        <img src={URL.createObjectURL(editFile)}
+                                             className="w-full h-full object-cover"/>
+                                    ) : (
+                                        renderAvatar(profileImage, username, "w-full h-full")
+                                    )}
+                                </div>
+                                <p className="text-[8px] font-black uppercase tracking-widest text-gray-600 mt-2">Kliknij
+                                    by zmienić foto</p>
+                                <input type="file" ref={editFileInputRef} className="hidden"
+                                       onChange={(e) => setEditFile(e.target.files[0])}/>
+                            </div>
+
+                            <input
+                                type="text" placeholder="Nowy username"
+                                className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
+                                value={editData.username}
+                                onChange={(e) => setEditData({...editData, username: e.target.value})}
+                            />
+
+                            <input
+                                type="email" placeholder="Nowy email"
+                                className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
+                                value={editData.email}
+                                onChange={(e) => setEditData({...editData, email: e.target.value})}
+                            />
+
+                            <input
+                                type="password" placeholder="Nowe hasło (opcjonalnie)"
+                                className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
+                                onChange={(e) => setEditData({...editData, password: e.target.value})}
+                            />
+
+                            <button type="submit"
+                                    className="w-full bg-white text-black font-black uppercase text-[10px] py-5 rounded-2xl hover:bg-green-500 transition-all">
+                                Zapisz zmiany
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}

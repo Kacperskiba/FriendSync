@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -13,7 +15,6 @@ from app.crud.user import get_user_by_email, get_user_by_username, create_user
 import shutil
 import os
 from fastapi import UploadFile, File, Form
-
 
 router = APIRouter(
     prefix="/api/users",
@@ -76,4 +77,52 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_user_profile(
+        username: Optional[str] = Form(None),
+        email: Optional[str] = Form(None),
+        password: Optional[str] = Form(None),
+        profile_image: Optional[UploadFile] = File(None),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    # 1. Aktualizacja Username (z walidacją unikalności)
+    if username and username != current_user.username:
+        if get_user_by_username(db, username):
+            raise HTTPException(status_code=400, detail="Ta nazwa użytkownika jest już zajęta")
+        current_user.username = username
+
+    # 2. Aktualizacja Email (z walidacją unikalności)
+    if email and email != current_user.email:
+        if get_user_by_email(db, email):
+            raise HTTPException(status_code=400, detail="Ten email jest już zajęty")
+        current_user.email = email
+
+    # 3. Aktualizacja Hasła
+    if password:
+        current_user.password_hash = get_password_hash(password)
+
+    # 4. Aktualizacja Zdjęcia Profilowego
+    if profile_image:
+        # Tworzymy folder jeśli nie istnieje
+        os.makedirs("static/avatars", exist_ok=True)
+
+        # Opcjonalnie: usuwamy stare zdjęcie z dysku, jeśli chcesz zachować porządek
+        # if current_user.profile_image and os.path.exists(current_user.profile_image):
+        #     os.remove(current_user.profile_image)
+
+        file_path = f"static/avatars/{current_user.id}_{profile_image.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(profile_image.file, buffer)
+
+        current_user.profile_image = file_path
+
+    # Zapisujemy zmiany w bazie
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
     return current_user
