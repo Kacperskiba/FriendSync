@@ -44,6 +44,34 @@ def read_user_events(
     return get_user_events(db=db, user_id=current_user.id)
 
 
+# --- UCZESTNICY: POBIERANIE LISTY ---
+@router.get("/{event_id}/participants",
+            response_model=List[EventResponse.UserResponse] if hasattr(EventResponse, 'UserResponse') else List[dict])
+def get_event_participants(
+        event_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    Pobiera listę wszystkich osób biorących udział w wydarzeniu.
+    Potrzebne, aby na froncie zamienić ID płatnika na jego Imię/Username.
+    """
+    # 1. Sprawdzamy, czy użytkownik ma dostęp do tego wydarzenia
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do listy uczestników tego wydarzenia.")
+
+    # 2. Pobieramy uczestników przez relację w modelu Event
+    event = get_event(db, event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje.")
+
+    # Wyciągamy obiekty User z tabeli łączącej EventParticipant
+    users = [p.user for p in event.participants]
+
+    # Zwracamy listę prostych obiektów (id i username)
+    return [{"id": u.id, "username": u.username} for u in users]
+
 @router.post("/{event_id}/invite", status_code=status.HTTP_200_OK)
 def invite_friend_to_event(
         event_id: int,
