@@ -12,6 +12,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: int
     created_at: datetime
+    profile_image: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
