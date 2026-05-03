@@ -40,20 +40,26 @@ def get_locations_with_votes(db: Session, event_id: int):
 
 
 def add_or_update_vote(db: Session, location_id: int, user_id: int, vote_value: int):
-    # System oddawania lub zmiany głosu
+    # Szukamy istniejącego głosu
     db_vote = db.query(LocationVote).filter(
         LocationVote.location_id == location_id,
         LocationVote.user_id == user_id
     ).first()
 
-    if db_vote:
-        db_vote.vote_value = vote_value
-    else:
-        db_vote = LocationVote(location_id=location_id, user_id=user_id, vote_value=vote_value)
-        db.add(db_vote)
+    if vote_value == 1:
+        # Jeśli użytkownik klika "ZA"
+        if not db_vote:
+            # Jeśli jeszcze nie głosował - dodajemy +1
+            db_vote = LocationVote(location_id=location_id, user_id=user_id, vote_value=1)
+            db.add(db_vote)
+
+    elif vote_value == -1:
+        # Jeśli użytkownik klika "W DÓŁ" - to u nas oznacza "USUŃ MÓJ GŁOS"
+        if db_vote:
+            db.delete(db_vote)
 
     db.commit()
-    return db_vote
+    return {"status": "success"}
 
 
 def delete_vote(db: Session, location_id: int, user_id: int):

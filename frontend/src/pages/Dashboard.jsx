@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useRef} from 'react';
 import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
+import EventMapComponent from '../components/GlobalDashboardMap.jsx';
 
 const API_URL = "http://127.0.0.1:8000/api/events";
 const FRIENDS_API = "http://127.0.0.1:8000/api/friends";
@@ -33,6 +34,8 @@ export default function Dashboard() {
     // NOWE STANY: Wyszukiwarka znajomych
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
+
+    const [isGlobalMapOpen, setIsGlobalMapOpen] = useState(false);
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({
@@ -277,6 +280,14 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full lg:w-auto">
+
+                    {/* NOWY PRZYCISK MAPY GLOBALNEJ */}
+                    <button
+                        onClick={() => setIsGlobalMapOpen(true)}
+                        className="bg-[#0f0f0f] hover:bg-[#151515] text-white font-black uppercase text-lg md:text-xl px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl"
+                    >
+                        🗺️
+                    </button>
                     {/* PRZYCISK DZWONKA */}
                     <button
                         onClick={() => setIsNotifOpen(true)}
@@ -359,16 +370,19 @@ export default function Dashboard() {
                             </div>
                         )}
 
-                        {error &&
-                            <p className="text-red-500 font-black text-center mt-10 uppercase tracking-widest">{error}</p>}
+                        {error && (
+                            <p className="text-red-500 font-black text-center mt-10 uppercase tracking-widest">{error}</p>
+                        )}
 
                         {!loading && !error && events.length === 0 && (
                             <div
                                 className="text-center mt-10 md:mt-20 p-10 md:p-20 bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] border border-white/5 shadow-2xl">
                                 <p className="text-gray-500 mb-8 font-black uppercase tracking-widest text-xs md:text-sm">Baza
                                     jest pusta.</p>
-                                <button onClick={() => setIsModalOpen(true)}
-                                        className="w-full sm:w-auto bg-white text-black font-black uppercase text-[10px] md:text-xs tracking-widest px-8 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl hover:bg-green-500 transition-all">
+                                <button
+                                    onClick={() => setIsModalOpen(true)}
+                                    className="w-full sm:w-auto bg-white text-black font-black uppercase text-[10px] md:text-xs tracking-widest px-8 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl hover:bg-green-500 transition-all"
+                                >
                                     Stwórz pierwsze wydarzenie
                                 </button>
                             </div>
@@ -377,39 +391,49 @@ export default function Dashboard() {
                         {!loading && !error && events.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6 md:gap-8">
                                 {events.map((event) => (
-                                    <div key={event.id} onClick={() => navigate(`/events/${event.id}`)}
-                                         className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl">
+                                    <div
+                                        key={event.id}
+                                        onClick={() => navigate(`/events/${event.id}`)}
+                                        className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl"
+                                    >
                                         <div className="relative z-10">
                                             <div className="flex justify-between items-start mb-6">
+                                                {/* Zmieniona ikona z mapy na status/piorun/kalendarz lub cokolwiek co nie jest mapą */}
                                                 <div
-                                                    className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-lg md:text-xl grayscale group-hover:grayscale-0 transition-all">🗺️
+                                                    className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-lg md:text-xl grayscale group-hover:grayscale-0 group-hover:scale-110 transition-all">
+                                                    📅
                                                 </div>
                                                 <span
-                                                    className="text-[8px] md:text-[9px] font-black text-gray-700 uppercase tracking-widest bg-black px-3 py-1 rounded-full border border-white/5">ID: {event.id}</span>
+                                                    className="text-[8px] md:text-[9px] font-black text-gray-700 uppercase tracking-widest bg-black px-3 py-1 rounded-full border border-white/5">
+                                    ID: {event.id}
+                                </span>
                                             </div>
+
                                             <h2 className="text-xl md:text-2xl font-black italic tracking-tighter uppercase mb-3 group-hover:text-green-500 transition-colors">
                                                 {event.title}
                                             </h2>
+
                                             {event.description && (
                                                 <p className="text-gray-500 text-[10px] md:text-xs font-bold leading-relaxed line-clamp-2 mb-8">
                                                     {event.description}
                                                 </p>
                                             )}
+
+                                            {/* Dolna sekcja bez przycisku mapy */}
                                             <div
                                                 className="pt-6 border-t border-white/5 flex justify-between items-center">
-                                                <button onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate(`/events/${event.id}/map`);
-                                                }}
-                                                        className="text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-black hover:bg-green-600 px-4 py-2 rounded-xl transition-all border border-white/10">
-                                                    Mapa 📍
-                                                </button>
+                                <span
+                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-green-500/50 group-hover:text-green-500 transition-colors">
+                                    Szczegóły →
+                                </span>
                                                 <span
                                                     className="text-[8px] md:text-[9px] text-gray-700 font-black uppercase tracking-widest">
-                                                    {new Date(event.created_at).toLocaleDateString()}
-                                                </span>
+                                    {new Date(event.created_at).toLocaleDateString()}
+                                </span>
                                             </div>
                                         </div>
+
+                                        {/* Subtelny gradient hover */}
                                         <div
                                             className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                     </div>
@@ -709,6 +733,46 @@ export default function Dashboard() {
                                 Zaktualizuj Profil
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* MODAL: MAPA GLOBALNA */}
+            {isGlobalMapOpen && (
+                <div
+                    className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 md:p-10 z-[250] animate-in fade-in duration-300">
+                    <div
+                        className="bg-[#0f0f0f] border border-white/10 rounded-[2rem] md:rounded-[3rem] w-full h-full max-w-[1400px] overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.8)]">
+
+                        {/* Header Modalu */}
+                        <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center bg-[#111]">
+                            <div>
+                                <h2 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter">
+                                    Globalna <span className="text-green-500">Mapa Wyjazdów</span>
+                                </h2>
+                                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
+                                    Przeglądaj wszystkie destynacje swojej ekipy
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsGlobalMapOpen(false)}
+                                className="bg-white/5 hover:bg-red-500/20 hover:text-red-500 text-white w-12 h-12 rounded-2xl transition-all font-black"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Kontener Mapy */}
+                        <div className="flex-1 relative bg-black">
+                            {/* Tutaj renderujemy Twój komponent mapy */}
+                            <EventMapComponent/>
+                        </div>
+
+                        {/* Footer Modalu (opcjonalny) */}
+                        <div className="p-4 bg-[#0a0a0a] text-center">
+                            <p className="text-[8px] font-black uppercase text-gray-700 tracking-[0.3em]">
+                                Tryb podglądu • Aby dodać punkt, wejdź w konkretne wydarzenie
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
