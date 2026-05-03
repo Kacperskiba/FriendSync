@@ -35,7 +35,13 @@ export default function Dashboard() {
     const [suggestions, setSuggestions] = useState([]);
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editData, setEditData] = useState({username: '', email: '', password: ''});
+    const [editData, setEditData] = useState({
+        username: '',
+        email: '',
+        confirmEmail: '',
+        password: '',
+        confirmPassword: ''
+    });
     const [editFile, setEditFile] = useState(null);
     const editFileInputRef = useRef(null);
 
@@ -223,8 +229,14 @@ export default function Dashboard() {
         const formData = new FormData();
 
         if (editData.username) formData.append('username', editData.username);
-        if (editData.email) formData.append('email', editData.email);
-        if (editData.password) formData.append('password', editData.password);
+        if (editData.email) {
+            formData.append('email', editData.email);
+            formData.append('confirm_email', editData.confirmEmail);
+        }
+        if (editData.password) {
+            formData.append('password', editData.password);
+            formData.append('confirm_password', editData.confirmPassword);
+        }
         if (editFile) formData.append('profile_image', editFile);
 
         try {
@@ -656,28 +668,45 @@ export default function Dashboard() {
                             </div>
 
                             <input
-                                type="text" placeholder="Nowy username"
+                                type="text" placeholder="Nazwa użytkownika"
                                 className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
                                 value={editData.username}
                                 onChange={(e) => setEditData({...editData, username: e.target.value})}
                             />
 
-                            <input
-                                type="email" placeholder="Nowy email"
-                                className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
-                                value={editData.email}
-                                onChange={(e) => setEditData({...editData, email: e.target.value})}
-                            />
+                            {/* EMAIL + POWTÓRZENIE */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <input
+                                    type="email" placeholder="Nowy email"
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
+                                    value={editData.email}
+                                    onChange={(e) => setEditData({...editData, email: e.target.value})}
+                                />
+                                <input
+                                    type="email" placeholder="Powtórz email"
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
+                                    value={editData.confirmEmail}
+                                    onChange={(e) => setEditData({...editData, confirmEmail: e.target.value})}
+                                />
+                            </div>
 
-                            <input
-                                type="password" placeholder="Nowe hasło (opcjonalnie)"
-                                className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
-                                onChange={(e) => setEditData({...editData, password: e.target.value})}
-                            />
+                            {/* HASŁO + POWTÓRZENIE */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <input
+                                    type="password" placeholder="Nowe hasło"
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
+                                    onChange={(e) => setEditData({...editData, password: e.target.value})}
+                                />
+                                <input
+                                    type="password" placeholder="Powtórz hasło"
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
+                                    onChange={(e) => setEditData({...editData, confirmPassword: e.target.value})}
+                                />
+                            </div>
 
                             <button type="submit"
-                                    className="w-full bg-white text-black font-black uppercase text-[10px] py-5 rounded-2xl hover:bg-green-500 transition-all">
-                                Zapisz zmiany
+                                    className="w-full bg-green-600 text-white font-black uppercase text-[10px] py-5 rounded-2xl hover:bg-green-500 transition-all mt-4">
+                                Zaktualizuj Profil
                             </button>
                         </form>
                     </div>
