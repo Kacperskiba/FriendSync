@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
@@ -7,6 +9,7 @@ class MessageCreate(BaseModel):
 class MessageAuthor(BaseModel):
     id: int
     username: str
+    profile_image: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

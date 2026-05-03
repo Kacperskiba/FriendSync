@@ -3,6 +3,7 @@ import {useParams, useNavigate} from 'react-router-dom';
 import axios from 'axios';
 
 const API_URL = "http://127.0.0.1:8000/api/events";
+const BASE_URL = "http://127.0.0.1:8000";
 
 export default function EventDetails() {
     const {id} = useParams();
@@ -17,20 +18,32 @@ export default function EventDetails() {
     const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
     const [newMessage, setNewMessage] = useState('');
+    const [currentUserId, setCurrentUserId] = useState(null);
 
     // 1. Pobieranie danych o wydarzeniu
     const fetchEventData = async () => {
         const token = localStorage.getItem('token');
         try {
-            const resEvent = await axios.get(API_URL, {
+            // Pobieramy całą listę (tak jak robiłeś wcześniej)
+            const res = await axios.get(API_URL, {
                 headers: {Authorization: `Bearer ${token}`}
             });
-            const currentEvent = resEvent.data.find(e => e.id === parseInt(id));
-            setEvent(currentEvent);
+
+            // Szukamy konkretnego wydarzenia w tej liście
+            const currentEvent = res.data.find(e => e.id === parseInt(id));
+
+            if (currentEvent) {
+                setEvent(currentEvent);
+            } else {
+                console.error("Nie znaleziono wydarzenia o tym ID");
+                navigate('/dashboard');
+            }
         } catch (err) {
             console.error("Błąd pobierania danych:", err);
+            navigate('/dashboard');
         }
     };
+
 
     // 2. NOWA FUNKCJA: Pobieranie uczestników
     const fetchParticipants = async () => {
@@ -53,10 +66,17 @@ export default function EventDetails() {
                 headers: {Authorization: `Bearer ${token}`}
             });
             setMessages(res.data);
-        } catch (err) {}
+        } catch (err) {
+        }
     };
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+        axios.get(`${BASE_URL}/api/users/me`, {
+            headers: {Authorization: `Bearer ${token}`}
+        }).then(res => setCurrentUserId(res.data.id));
+
+        fetchEventData();
         fetchEventData();
         fetchParticipants(); // Wywołujemy pobieranie uczestników przy starcie
         if (isChatOpen) {
@@ -96,11 +116,35 @@ export default function EventDetails() {
             });
             setNewMessage('');
             fetchMessages();
-        } catch (err) {}
+        } catch (err) {
+        }
+    };
+
+    const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10") => {
+        if (imageUrl) {
+            return (
+                <img
+                    src={`${BASE_URL}/${imageUrl}`}
+                    alt={name}
+                    className={`${sizeClasses} rounded-xl object-cover border border-white/10 shadow-lg`}
+                    onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "";
+                    }}
+                />
+            );
+        }
+        return (
+            <div
+                className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg shadow-green-900/40 uppercase text-white`}>
+                {name.substring(0, 2)}
+            </div>
+        );
     };
 
     if (!event) return (
-        <div className="min-h-screen bg-[#050505] flex items-center justify-center text-green-500 font-black uppercase tracking-widest animate-pulse">
+        <div
+            className="min-h-screen bg-[#050505] flex items-center justify-center text-green-500 font-black uppercase tracking-widest animate-pulse">
             Inicjalizacja widoku...
         </div>
     );
@@ -109,13 +153,15 @@ export default function EventDetails() {
         <div className="min-h-screen bg-[#050505] text-white font-sans p-6 md:p-12">
 
             {/* DEKORACJA TŁA */}
-            <div className="fixed top-0 right-0 w-1/2 h-1/2 bg-green-500/5 blur-[120px] rounded-full pointer-events-none shadow-inner"></div>
+            <div
+                className="fixed top-0 right-0 w-1/2 h-1/2 bg-green-500/5 blur-[120px] rounded-full pointer-events-none shadow-inner"></div>
 
             {/* NAWIGACJA GÓRNA */}
-            <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6 relative z-10">
+            <div
+                className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6 relative z-10">
                 <button onClick={() => navigate('/dashboard')}
                         className="text-gray-600 hover:text-white flex items-center gap-2 font-black uppercase text-[10px] tracking-[0.3em] transition-all">
-                    ← Powrót do bazy
+                    ← Powrót
                 </button>
                 <div className="flex gap-4 w-full md:w-auto">
                     <button
@@ -137,8 +183,10 @@ export default function EventDetails() {
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
 
                 {/* KARTA GŁÓWNA: SZCZEGÓŁY */}
-                <div className="md:col-span-2 bg-[#0f0f0f] rounded-[3rem] p-10 border border-white/5 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-10 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
+                <div
+                    className="md:col-span-2 bg-[#0f0f0f] rounded-[3rem] p-10 border border-white/5 shadow-2xl relative overflow-hidden group">
+                    <div
+                        className="absolute top-0 right-0 p-10 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
                         <span className="text-[120px] font-black italic uppercase leading-none">INFO</span>
                     </div>
 
@@ -151,7 +199,8 @@ export default function EventDetails() {
                     </p>
 
                     <div className="pt-8 border-t border-white/5 flex items-center gap-4">
-                        <div className="px-4 py-2 bg-black rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400">
+                        <div
+                            className="px-4 py-2 bg-black rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400">
                             Status: Aktywne
                         </div>
                         <div className="text-[9px] font-black uppercase tracking-widest text-gray-700">
@@ -172,20 +221,26 @@ export default function EventDetails() {
                         </button>
                     </div>
 
+                    {/* SZUKAJ TEGO FRAGMENTU W KARCIE BOCZNEJ */}
                     <div className="space-y-3">
                         {participants.length === 0 ? (
-                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest text-center py-4">Ładowanie ekipy...</p>
+                            <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest text-center py-4">Ładowanie
+                                ekipy...</p>
                         ) : (
                             participants.map((user) => (
-                                <div key={user.id} className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
-                                    <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg shadow-green-900/40 uppercase">
-                                        {user.username.substring(0, 2)}
-                                    </div>
+                                <div key={user.id}
+                                     className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
+
+                                    {/* TUTAJ PODMIANA NA renderAvatar */}
+                                    {renderAvatar(user.profile_image, user.username)}
+
                                     <div>
-                                        <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">{user.username}</span>
-                                        <span className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">
-                                            {user.id === event.owner_id ? "Organizator" : "Uczestnik"}
-                                        </span>
+                                        <span
+                                            className="block text-[11px] font-black uppercase tracking-tight text-white italic">{user.username}</span>
+                                        <span
+                                            className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">
+                        {user.id === event.owner_id ? "Organizator" : "Uczestnik"}
+                    </span>
                                     </div>
                                 </div>
                             ))
@@ -196,12 +251,17 @@ export default function EventDetails() {
 
             {/* MODAL ZAPROSZENIA I CZAT BEZ ZMIAN... */}
             {isInviteOpen && (
-                <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-6 backdrop-blur-xl">
-                    <div className="bg-[#0f0f0f] p-10 rounded-[3rem] border border-white/10 w-full max-w-sm shadow-[0_0_100px_rgba(0,0,0,1)]">
-                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-center mb-8">Zaproś do <span className="text-green-500">Grup.</span></h2>
+                <div
+                    className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-6 backdrop-blur-xl">
+                    <div
+                        className="bg-[#0f0f0f] p-10 rounded-[3rem] border border-white/10 w-full max-w-sm shadow-[0_0_100px_rgba(0,0,0,1)]">
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-center mb-8">Zaproś
+                            do <span className="text-green-500">Grup.</span></h2>
                         <form onSubmit={handleInvite} className="space-y-6">
                             <div>
-                                <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Adres E-mail</label>
+                                <label
+                                    className="text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Adres
+                                    E-mail</label>
                                 <input
                                     type="email"
                                     placeholder="znajomy@poczta.pl"
@@ -213,8 +273,11 @@ export default function EventDetails() {
                             </div>
                             <div className="flex gap-3">
                                 <button type="button" onClick={() => setIsInviteOpen(false)}
-                                        className="flex-1 py-5 bg-white/5 rounded-2xl font-black uppercase text-[10px] tracking-widest">Anuluj</button>
-                                <button type="submit" className="flex-1 py-5 bg-green-600 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-green-900/20">Wyślij</button>
+                                        className="flex-1 py-5 bg-white/5 rounded-2xl font-black uppercase text-[10px] tracking-widest">Anuluj
+                                </button>
+                                <button type="submit"
+                                        className="flex-1 py-5 bg-green-600 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-green-900/20">Wyślij
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -222,23 +285,56 @@ export default function EventDetails() {
             )}
 
             {isChatOpen && (
-                <div className="fixed bottom-8 right-8 w-full max-w-md h-[600px] bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,1)] flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10 duration-500">
+                <div
+                    className="fixed bottom-8 right-8 w-full max-w-md h-[600px] bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,1)] flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10 duration-500">
                     <div className="bg-black p-6 flex justify-between items-center border-b border-white/5">
-                        <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-green-500 italic">Czat Operacyjny</h3>
-                        <button onClick={() => setIsChatOpen(false)} className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-full text-gray-500 hover:text-white hover:bg-red-500/20 transition-all">✕</button>
+                        <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-green-500 italic">Czat Wydarzenia</h3>
+                        <button onClick={() => setIsChatOpen(false)}
+                                className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-full text-gray-500 hover:text-white hover:bg-red-500/20 transition-all">✕
+                        </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0a0a0a] custom-scrollbar">
-                        {messages.map((msg) => (
-                            <div key={msg.id} className="group">
-                                <div className="text-[8px] text-gray-600 font-black mb-2 ml-1 uppercase tracking-widest">
-                                    {msg.author.username}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#0a0a0a] custom-scrollbar flex flex-col">
+                        {messages.map((msg) => {
+                            const isMe = msg.author.id === currentUserId;
+
+                            return (
+                                <div key={msg.id}
+                                     className={`flex items-end gap-2 max-w-[85%] ${isMe ? 'self-end flex-row-reverse' : 'self-start flex-row'}`}>
+
+                                    {/* Awatar - pokazujemy tylko u innych, u siebie możemy pominąć (jak w Messengerze) lub zostawić mniejszy */}
+                                    {!isMe && (
+                                        <div className="mb-1">
+                                            {renderAvatar(msg.author.profile_image, msg.author.username, "w-7 h-7 text-[8px] rounded-full")}
+                                        </div>
+                                    )}
+
+                                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                        {/* Nazwa użytkownika - opcjonalnie tylko u innych */}
+                                        {!isMe && (
+                                            <span
+                                                className="text-[7px] text-gray-500 font-black uppercase tracking-widest ml-2 mb-1">
+                            {msg.author.username}
+                        </span>
+                                        )}
+
+                                        {/* Bąbelek wiadomości */}
+                                        <div className={`px-4 py-2.5 rounded-[1.5rem] shadow-sm ${
+                                            isMe
+                                                ? 'bg-green-600 text-white rounded-br-none border border-green-500/50'
+                                                : 'bg-[#1a1a1a] text-gray-200 rounded-bl-none border border-white/5'
+                                        }`}>
+                                            <p className="text-sm font-medium leading-relaxed">{msg.content}</p>
+                                        </div>
+
+                                        {/* Czas (opcjonalnie pod bąbelkiem) */}
+                                        <span className="text-[6px] text-gray-700 mt-1 uppercase font-bold">
+                        {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                    </span>
+                                    </div>
                                 </div>
-                                <div className="bg-[#151515] p-4 rounded-2xl rounded-tl-none border border-white/5 shadow-sm inline-block max-w-[90%]">
-                                    <p className="text-sm font-bold text-gray-300 leading-relaxed">{msg.content}</p>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         <div ref={messagesEndRef}/>
                     </div>
 
@@ -250,7 +346,8 @@ export default function EventDetails() {
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                         />
-                        <button type="submit" className="bg-green-600 w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-green-500 transition-all shadow-lg shadow-green-900/30">
+                        <button type="submit"
+                                className="bg-green-600 w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-green-500 transition-all shadow-lg shadow-green-900/30">
                             🚀
                         </button>
                     </form>

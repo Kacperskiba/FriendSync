@@ -336,7 +336,7 @@ export default function Dashboard() {
                                 <div className="h-px bg-white/5 my-2 mx-4"></div>
                                 <button onClick={handleLogout}
                                         className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3">🚪
-                                    Wyloguj sesję
+                                    Wyloguj się
                                 </button>
                             </div>
                         )}

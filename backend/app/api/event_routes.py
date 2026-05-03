@@ -17,13 +17,16 @@ from app.crud.expense import create_expense, get_event_expenses, calculate_finan
 
 class EventInvite(BaseModel):
     email: str
+
+
 router = APIRouter(prefix="/api/events", tags=["Events"])
+
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 def create_new_event(
-    event: EventCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # BRAMKARZ! Bez tokena tu nie wejdziesz.
+        event: EventCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)  # BRAMKARZ! Bez tokena tu nie wejdziesz.
 ):
     """
     Tworzy nowe wydarzenie.
@@ -33,10 +36,11 @@ def create_new_event(
     # 'current_user' wyciągnął tę informację w bezpieczny sposób prosto z tokena!
     return create_event(db=db, event=event, user_id=current_user.id)
 
+
 @router.get("/", response_model=List[EventResponse])
 def read_user_events(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # BRAMKARZ pilnuje dostępu!
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)  # BRAMKARZ pilnuje dostępu!
 ):
     """
     Pobiera listę wszystkich wydarzeń, w których bierze udział zalogowany użytkownik.
@@ -45,32 +49,33 @@ def read_user_events(
 
 
 # --- UCZESTNICY: POBIERANIE LISTY ---
-@router.get("/{event_id}/participants",
-            response_model=List[EventResponse.UserResponse] if hasattr(EventResponse, 'UserResponse') else List[dict])
+@router.get("/{event_id}/participants")
 def get_event_participants(
         event_id: int,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    Pobiera listę wszystkich osób biorących udział w wydarzeniu.
-    Potrzebne, aby na froncie zamienić ID płatnika na jego Imię/Username.
-    """
-    # 1. Sprawdzamy, czy użytkownik ma dostęp do tego wydarzenia
+    # 1. Sprawdzamy dostęp (Twoja logika jest OK)
     participant = get_participant(db, event_id=event_id, user_id=current_user.id)
     if not participant:
-        raise HTTPException(status_code=403, detail="Nie masz dostępu do listy uczestników tego wydarzenia.")
+        raise HTTPException(status_code=403, detail="Brak dostępu")
 
-    # 2. Pobieramy uczestników przez relację w modelu Event
     event = get_event(db, event_id=event_id)
     if not event:
-        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje.")
+        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje")
 
-    # Wyciągamy obiekty User z tabeli łączącej EventParticipant
+    # 2. Pobieramy użytkowników
     users = [p.user for p in event.participants]
 
-    # Zwracamy listę prostych obiektów (id i username)
-    return [{"id": u.id, "username": u.username} for u in users]
+    # 3. KLUCZOWA ZMIANA: Dodajemy profile_image do zwracanych danych
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "profile_image": u.profile_image  # <-- To musi tu być!
+        } for u in users
+    ]
+
 
 @router.post("/{event_id}/invite", status_code=status.HTTP_200_OK)
 def invite_friend_to_event(
@@ -117,14 +122,13 @@ def send_event_message(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """Wysyła nową wiadomość na czacie wydarzenia."""
-    # 1. Sprawdzamy czy użytkownik ma dostęp (czy jest uczestnikiem)
     participant = get_participant(db, event_id=event_id, user_id=current_user.id)
     if not participant:
         raise HTTPException(status_code=403, detail="Nie masz dostępu do czatu tego wydarzenia.")
 
-    # 2. Tworzymy wiadomość
-    return create_message(db=db, event_id=event_id, user_id=current_user.id, message=message)
+    # create_message powinno zwracać obiekt modelu Message z załadowaną relacją 'author'
+    new_msg = create_message(db=db, event_id=event_id, user_id=current_user.id, message=message)
+    return new_msg
 
 
 # --- CZAT: ODCZYTYWANIE WIADOMOŚCI ---
@@ -134,13 +138,16 @@ def read_event_messages(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """Pobiera całą historię czatu dla wydarzenia."""
-    # 1. Ponownie - bramkarz sprawdza dostęp do wydarzenia
     participant = get_participant(db, event_id=event_id, user_id=current_user.id)
     if not participant:
         raise HTTPException(status_code=403, detail="Nie masz dostępu do czatu tego wydarzenia.")
 
-    return get_event_messages(db=db, event_id=event_id)
+    # Pobieramy wiadomości
+    messages = get_event_messages(db=db, event_id=event_id)
+
+    # Dzięki response_model=List[MessageResponse], FastAPI samo
+    # wyciągnie profile_image z relacji author w każdej wiadomości.
+    return messages
 
 
 # --- FINANSE: DODAWANIE WYDATKU ---
