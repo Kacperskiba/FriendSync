@@ -4,9 +4,10 @@ import axios from 'axios';
 
 import EventMapComponent from '../components/EventMapComponent';
 
-const API_URL = "http://127.0.0.1:8000/api/events";
-const FRIENDS_API = "http://127.0.0.1:8000/api/friends";
-const BASE_URL = "http://127.0.0.1:8000";
+import { API_BASE_URL } from '../services/api';
+const API_URL = `${API_BASE_URL}/api/events`;
+const FRIENDS_API = `${API_BASE_URL}/api/friends`;
+const BASE_URL = API_BASE_URL;
 
 export default function EventDetails() {
     const {id} = useParams();

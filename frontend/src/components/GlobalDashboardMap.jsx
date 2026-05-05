@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -45,12 +46,12 @@ export default function GlobalDashboardMap() {
 
     const fetchAllLocations = async () => {
         try {
-            const eventsRes = await axios.get(`http://127.0.0.1:8000/api/events`, {
+            const eventsRes = await axios.get(`${API_BASE_URL}/api/events`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             const locationPromises = eventsRes.data.map(event =>
-                axios.get(`http://127.0.0.1:8000/api/events/${event.id}/locations`, {
+                axios.get(`${API_BASE_URL}/api/events/${event.id}/locations`, {
                     headers: { Authorization: `Bearer ${token}` }
                 }).then(res => res.data.map(loc => ({
                     ...loc,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 
 export default function EventFinance() {
     const { id } = useParams();
@@ -28,9 +29,9 @@ export default function EventFinance() {
             setCurrentUser(resMe.data);
 
             const [resExp, resUsers, resSummary] = await Promise.all([
-                axios.get(`http://127.0.0.1:8000/api/events/${id}/expenses`, headers),
-                axios.get(`http://127.0.0.1:8000/api/events/${id}/participants`, headers),
-                axios.get(`http://127.0.0.1:8000/api/events/${id}/finances/summary`, headers)
+                axios.get(`${API_BASE_URL}/api/events/${id}/expenses`, headers),
+                axios.get(`${API_BASE_URL}/api/events/${id}/participants`, headers),
+                axios.get(`${API_BASE_URL}/api/events/${id}/finances/summary`, headers)
             ]);
 
             setExpenses(resExp.data || []);
@@ -57,7 +58,7 @@ export default function EventFinance() {
         };
 
         try {
-            await axios.post(`http://127.0.0.1:8000/api/events/${id}/expenses`, payload, headers);
+            await axios.post(`${API_BASE_URL}/api/events/${id}/expenses`, payload, headers);
             fetchData();
         } catch (err) {
             alert("Błąd zapisu spłaty: " + (err.response?.data?.detail || "Nieznany błąd"));
@@ -85,7 +86,7 @@ export default function EventFinance() {
         };
 
         try {
-            await axios.post(`http://127.0.0.1:8000/api/events/${id}/expenses`, payload, headers);
+            await axios.post(`${API_BASE_URL}/api/events/${id}/expenses`, payload, headers);
             setIsModalOpen(false);
             setExpenseData({ title: '', amount: '' });
             setSelectedUsers([]);
