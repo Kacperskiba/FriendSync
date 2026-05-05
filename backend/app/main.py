@@ -34,6 +34,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://friend-synnc.vercel.app",
 ]
 
 app.add_middleware(
