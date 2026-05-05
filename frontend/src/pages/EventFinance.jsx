@@ -25,7 +25,7 @@ export default function EventFinance() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const resMe = await axios.get('http://127.0.0.1:8000/api/users/me', headers);
+            const resMe = await axios.get(`${API_BASE_URL}/api/users/me`, headers);
             setCurrentUser(resMe.data);
 
             const [resExp, resUsers, resSummary] = await Promise.all([
