@@ -93,22 +93,27 @@ export default function EventDetails() {
         fetchEventData();
         fetchParticipants();
 
+        let socket;
+
         if (isChatOpen) {
             fetchMessages();
 
             const wsUrl = BASE_URL.replace('http', 'ws');
-            const socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
+            socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
+
+            socket.onopen = () => console.log("Połączona z WS");
 
             // Reakcja na sygnał z backendu
             socket.onmessage = (event) => {
                 if (event.data === "refresh") {
-                    console.log("WebSocket: Ktoś wysłał wiadomość! Pobieram nowe dane...");
+
                     fetchMessages(); //
                 }
             };
             return () => {
-                console.log("Zamykanie połączenia WebSocket...");
-                socket.close();
+                if (socket) {
+                    socket.close();
+                }
         };
         }
     }, [id, isChatOpen]);
