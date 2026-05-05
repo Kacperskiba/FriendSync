@@ -13,7 +13,7 @@ from app.schemas.message import MessageCreate, MessageResponse
 from app.crud.message import create_message, get_event_messages
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, FinanceSummaryResponse
 from app.crud.expense import create_expense, get_event_expenses, calculate_finance_summary
-
+from app.api.websocket import manager
 
 class EventInvite(BaseModel):
     email: str
@@ -116,7 +116,7 @@ def invite_friend_to_event(
 
 # --- CZAT: WYSYŁANIE WIADOMOŚCI ---
 @router.post("/{event_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-def send_event_message(
+async def send_event_message(
         event_id: int,
         message: MessageCreate,
         db: Session = Depends(get_db),
@@ -128,6 +128,7 @@ def send_event_message(
 
     # create_message powinno zwracać obiekt modelu Message z załadowaną relacją 'author'
     new_msg = create_message(db=db, event_id=event_id, user_id=current_user.id, message=message)
+    await manager.broadcast(event_id)
     return new_msg
 
 

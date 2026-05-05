@@ -95,8 +95,21 @@ export default function EventDetails() {
 
         if (isChatOpen) {
             fetchMessages();
-            const interval = setInterval(fetchMessages, 3000);
-            return () => clearInterval(interval);
+
+            const wsUrl = BASE_URL.replace('http', 'ws');
+            const socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
+
+            // Reakcja na sygnał z backendu
+            socket.onmessage = (event) => {
+                if (event.data === "refresh") {
+                    console.log("WebSocket: Ktoś wysłał wiadomość! Pobieram nowe dane...");
+                    fetchMessages(); //
+                }
+            };
+            return () => {
+                console.log("Zamykanie połączenia WebSocket...");
+                socket.close();
+        };
         }
     }, [id, isChatOpen]);
 
