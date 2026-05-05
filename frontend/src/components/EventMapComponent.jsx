@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -34,7 +35,7 @@ export default function EventMapComponent({ eventId }) {
 
     const fetchLocations = async () => {
         try {
-            const res = await axios.get(`http://127.0.0.1:8000/api/events/${eventId}/locations`);
+            const res = await axios.get(`${API_BASE_URL}/api/events/${eventId}/locations`);
             setLocations(res.data);
 
             if (res.data.length > 0) {
@@ -53,7 +54,7 @@ export default function EventMapComponent({ eventId }) {
 
         setLoading(true);
         try {
-            await axios.post(`http://127.0.0.1:8000/api/events/${eventId}/locations`,
+            await axios.post(`${API_BASE_URL}/api/events/${eventId}/locations`,
                 { name: searchQuery, address: searchQuery },
                 { headers: { Authorization: `Bearer ${token}` }}
             );
@@ -71,7 +72,7 @@ export default function EventMapComponent({ eventId }) {
         // Logika: wysyłamy po prostu wartość głosu (1 lub -1)
         // Jeśli backend odejmuje wartość zamiast ustawiać stan,
         // upewnij się, że nie wysyłasz "val" wielokrotnie.
-        await axios.post(`http://127.0.0.1:8000/api/locations/${locId}/votes`,
+        await axios.post(`${API_BASE_URL}/api/locations/${locId}/votes`,
             { vote_value: val },
             { headers: { Authorization: `Bearer ${token}` }}
         );

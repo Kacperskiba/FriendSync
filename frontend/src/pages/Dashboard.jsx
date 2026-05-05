@@ -3,10 +3,11 @@ import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import EventMapComponent from '../components/GlobalDashboardMap.jsx';
 
-const API_URL = "http://127.0.0.1:8000/api/events";
-const FRIENDS_API = "http://127.0.0.1:8000/api/friends";
-const NOTIF_API = "http://127.0.0.1:8000/api/notifications";
-const BASE_URL = "http://127.0.0.1:8000";
+import { API_BASE_URL } from '../services/api';
+const API_URL = `${API_BASE_URL}/api/events`;
+const FRIENDS_API = `${API_BASE_URL}/api/friends`;
+const NOTIF_API = `${API_BASE_URL}/api/notifications`;
+const BASE_URL = API_BASE_URL;
 
 export default function Dashboard() {
     const [events, setEvents] = useState([]);
