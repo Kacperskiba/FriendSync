@@ -86,18 +86,50 @@ export default function EventDetails() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        axios.get(`${BASE_URL}/api/users/me`, {
-            headers: {Authorization: `Bearer ${token}`}
-        }).then(res => setCurrentUserId(res.data.id));
+        if (token) {
+            axios.get(`${BASE_URL}/api/users/me`, {
+                headers: {Authorization: `Bearer ${token}`}
+            })
+            .then(res => setCurrentUserId(res.data.id))
+            .catch(err => console.error(err));
+        }
 
         fetchEventData();
         fetchParticipants();
+    }, [id]);
 
+    useEffect(() => {
         if (isChatOpen) {
             fetchMessages();
-            const interval = setInterval(fetchMessages, 3000);
-            return () => clearInterval(interval);
         }
+    }, [isChatOpen]);
+
+    useEffect(() => {
+        const wsUrl = BASE_URL.replace('http', 'ws');
+        const socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
+
+        socket.onopen = () => console.log("Połączono z WS (Czat i Ekipa)");
+
+        socket.onmessage = (event) => {
+            if (event.data === "refresh") {
+                console.log("Zmiana w wydarzeniu! Odświeżam...");
+
+                // Zawsze odświeżamy listę uczestników (na wypadek nowego zaproszenia)
+                fetchParticipants();
+
+                // Odświeżamy nowe wiadomości tylko wtedy, gdy użytkownik ma na ekranie czat
+                if (isChatOpen) {
+                    fetchMessages();
+                }
+            }
+        };
+
+        socket.onerror = (err) => console.error("Błąd WebSocket:", err);
+
+        return () => {
+            console.log("Zamykanie połączenia WS (Czat i Ekipa)");
+            socket.close();
+        };
     }, [id, isChatOpen]);
 
     useEffect(() => {

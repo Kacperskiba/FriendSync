@@ -46,6 +46,34 @@ export default function EventFinance() {
 
     useEffect(() => { if (id) fetchData(); }, [id]);
 
+    useEffect(() => {
+        let socket;
+
+        if (id) {
+            const wsUrl = API_BASE_URL.replace('http', 'ws');
+            socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
+
+            socket.onopen = () => console.log("Połączono z systemem finansów na żywo!");
+
+            socket.onmessage = (event) => {
+                if (event.data === "refresh") {
+                    console.log("Ktoś dodał wydatek lub spłacił dług! Odświeżam portfel...");
+                    fetchData(); // Dociąga nowe wydatki i przelicza długi
+                }
+            };
+
+            socket.onerror = (err) => console.error("Błąd WS w portfelu:", err);
+        }
+
+        // Cleanup po wyjściu z zakładki portfela
+        return () => {
+            if (socket) {
+                console.log("Zamknięto połączenie WS portfela");
+                socket.close();
+            }
+        };
+    }, [id]);
+
     // LOGIKA ROZLICZENIA (ZAPŁACONE)
     const handleSettle = async (toUserId, amount) => {
         const targetUser = getUsername(toUserId);

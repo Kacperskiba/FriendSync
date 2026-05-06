@@ -8,6 +8,8 @@ from app.api.dependencies import get_current_user
 from app.schemas.friendship import FriendRequestCreate, FriendUserResponse, PendingRequestResponse
 from app.crud.friendship import send_friend_request, accept_friend_request, get_friends, get_pending_requests
 
+from app.api.websocket import manager
+
 router = APIRouter(
     prefix="/api/friends",
     tags=["Friends"]
@@ -15,14 +17,28 @@ router = APIRouter(
 
 
 @router.post("/request", status_code=status.HTTP_201_CREATED)
-def add_friend(request: FriendRequestCreate, db: Session = Depends(get_db),
-               current_user: User = Depends(get_current_user)):
-    return send_friend_request(db, current_user.id, request.friend_identifier)
+async def add_friend(
+        request: FriendRequestCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    new_request = send_friend_request(db, current_user.id, request.friend_identifier)
+    target_user_id = new_request.friend_id
 
+    await manager.broadcast_to_user(target_user_id, "new_friend_request")
+    return new_request
 
 @router.post("/{friendship_id}/accept", status_code=status.HTTP_200_OK)
-def accept_friend(friendship_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return accept_friend_request(db, friendship_id, current_user.id)
+async def accept_friend(
+        friendship_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    accepted_request = accept_friend_request(db, friendship_id, current_user.id)
+    sender_id = accepted_request.user_id
+
+    await manager.broadcast_to_user(sender_id, "friend_request_accepted")
+    return accepted_request
 
 
 @router.get("", response_model=List[FriendUserResponse])

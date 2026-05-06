@@ -13,7 +13,7 @@ from app.schemas.message import MessageCreate, MessageResponse
 from app.crud.message import create_message, get_event_messages
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, FinanceSummaryResponse
 from app.crud.expense import create_expense, get_event_expenses, calculate_finance_summary
-
+from app.api.websocket import manager
 
 class EventInvite(BaseModel):
     email: str
@@ -78,7 +78,7 @@ def get_event_participants(
 
 
 @router.post("/{event_id}/invite", status_code=status.HTTP_200_OK)
-def invite_friend_to_event(
+async def invite_friend_to_event(
         event_id: int,
         invite_data: EventInvite,
         db: Session = Depends(get_db),
@@ -111,12 +111,13 @@ def invite_friend_to_event(
     # 5. Dodajemy znajomego do wydarzenia
     add_user_to_event(db=db, event_id=event_id, user_id=friend.id)
 
+    await manager.broadcast(event_id)
     return {"message": f"Użytkownik {friend.username} został dodany do wydarzenia!"}
 
 
 # --- CZAT: WYSYŁANIE WIADOMOŚCI ---
 @router.post("/{event_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-def send_event_message(
+async def send_event_message(
         event_id: int,
         message: MessageCreate,
         db: Session = Depends(get_db),
@@ -128,6 +129,8 @@ def send_event_message(
 
     # create_message powinno zwracać obiekt modelu Message z załadowaną relacją 'author'
     new_msg = create_message(db=db, event_id=event_id, user_id=current_user.id, message=message)
+
+    await manager.broadcast(event_id)
     return new_msg
 
 
@@ -152,7 +155,7 @@ def read_event_messages(
 
 # --- FINANSE: DODAWANIE WYDATKU ---
 @router.post("/{event_id}/expenses", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
-def add_event_expense(
+async def add_event_expense(
         event_id: int,
         expense: ExpenseCreate,
         db: Session = Depends(get_db),
@@ -169,8 +172,10 @@ def add_event_expense(
     if total_shares > expense.amount:
         raise HTTPException(status_code=400, detail="Suma długów jest większa niż całkowita kwota wydatku!")
 
-    # 2. Zapisujemy wydatek w bazie
-    return create_expense(db=db, event_id=event_id, payer_id=current_user.id, expense_data=expense)
+    new_expense = create_expense(db=db, event_id=event_id, payer_id=current_user.id, expense_data=expense)
+
+    await manager.broadcast(event_id)
+    return new_expense
 
 
 # --- FINANSE: ODCZYTYWANIE WYDATKÓW ---

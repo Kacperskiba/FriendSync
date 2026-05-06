@@ -42,7 +42,7 @@ def send_friend_request(db: Session, user_id: int, friend_identifier: str):
         message=f"{sender.username} wysłał Ci zaproszenie do znajomych!"
     )
 
-    return {"message": "Zaproszenie wysłane pomyślnie!"}
+    return new_req
 
 
 def accept_friend_request(db: Session, friendship_id: int, user_id: int):
@@ -58,6 +58,7 @@ def accept_friend_request(db: Session, friendship_id: int, user_id: int):
 
     req.status = "accepted"
     db.commit()
+    db.refresh(req)
 
     # Opcjonalnie: Powiadomienie dla nadawcy, że zaakceptowaliśmy zaproszenie!
     acceptor = db.query(User).filter(User.id == user_id).first()
@@ -68,7 +69,7 @@ def accept_friend_request(db: Session, friendship_id: int, user_id: int):
         message=f"{acceptor.username} zaakceptował Twoje zaproszenie do znajomych!"
     )
 
-    return {"message": "Zaproszenie zaakceptowane!"}
+    return req
 
 
 def get_friends(db: Session, user_id: int):

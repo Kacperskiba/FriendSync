@@ -10,7 +10,7 @@ from app.models import user, event, expense, location, message, friendship, noti
 from app.api import friend_routes
 from app.api import notification_routes
 from fastapi.staticfiles import StaticFiles  # <-- IMPORTUJ TO
-
+from app.api import websocket
 
 Base.metadata.create_all(bind=engine)
 
@@ -49,6 +49,7 @@ app.include_router(event_routes.router)
 app.include_router(location_routes.router)
 app.include_router(friend_routes.router)
 app.include_router(notification_routes.router)
+app.include_router(websocket.router)
 
 
 @app.get("/")
