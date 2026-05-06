@@ -86,36 +86,47 @@ export default function EventDetails() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        axios.get(`${BASE_URL}/api/users/me`, {
-            headers: {Authorization: `Bearer ${token}`}
-        }).then(res => setCurrentUserId(res.data.id));
+        if (token) {
+            axios.get(`${BASE_URL}/api/users/me`, {
+                headers: {Authorization: `Bearer ${token}`}
+            })
+            .then(res => setCurrentUserId(res.data.id))
+            .catch(err => console.error(err));
+        }
 
         fetchEventData();
         fetchParticipants();
+    }, [id]);
 
+    useEffect(() => {
         let socket;
 
         if (isChatOpen) {
-            fetchMessages();
+            fetchMessages(); // Pobierz początkowe wiadomości
 
+            // Zmiana http -> ws (oraz https -> wss automatycznie dla produkcji)
             const wsUrl = BASE_URL.replace('http', 'ws');
             socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
 
-            socket.onopen = () => console.log("Połączona z WS");
+            socket.onopen = () => console.log("Połączono z WS");
 
-            // Reakcja na sygnał z backendu
             socket.onmessage = (event) => {
                 if (event.data === "refresh") {
-
-                    fetchMessages(); //
+                    console.log("Nowa wiadomość na serwerze! Pobieram...");
+                    fetchMessages();
                 }
             };
-            return () => {
-                if (socket) {
-                    socket.close();
-                }
-        };
+
+            socket.onerror = (err) => console.error("Błąd WebSocket:", err);
         }
+
+        // Cleanup: Zamykamy WebSocket po zamknięciu okienka czatu lub wyjściu z podstrony
+        return () => {
+            if (socket) {
+                console.log("Zamykanie połączenia WS");
+                socket.close();
+            }
+        };
     }, [id, isChatOpen]);
 
     useEffect(() => {
