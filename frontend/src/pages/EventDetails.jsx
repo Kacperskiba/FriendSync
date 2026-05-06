@@ -99,33 +99,36 @@ export default function EventDetails() {
     }, [id]);
 
     useEffect(() => {
-        let socket;
-
         if (isChatOpen) {
-            fetchMessages(); // Pobierz początkowe wiadomości
+            fetchMessages();
+        }
+    }, [isChatOpen]);
 
-            // Zmiana http -> ws (oraz https -> wss automatycznie dla produkcji)
-            const wsUrl = BASE_URL.replace('http', 'ws');
-            socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
+    useEffect(() => {
+        const wsUrl = BASE_URL.replace('http', 'ws');
+        const socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
 
-            socket.onopen = () => console.log("Połączono z WS");
+        socket.onopen = () => console.log("Połączono z WS (Czat i Ekipa)");
 
-            socket.onmessage = (event) => {
-                if (event.data === "refresh") {
-                    console.log("Nowa wiadomość na serwerze! Pobieram...");
+        socket.onmessage = (event) => {
+            if (event.data === "refresh") {
+                console.log("Zmiana w wydarzeniu! Odświeżam...");
+
+                // Zawsze odświeżamy listę uczestników (na wypadek nowego zaproszenia)
+                fetchParticipants();
+
+                // Odświeżamy nowe wiadomości tylko wtedy, gdy użytkownik ma na ekranie czat
+                if (isChatOpen) {
                     fetchMessages();
                 }
-            };
-
-            socket.onerror = (err) => console.error("Błąd WebSocket:", err);
-        }
-
-        // Cleanup: Zamykamy WebSocket po zamknięciu okienka czatu lub wyjściu z podstrony
-        return () => {
-            if (socket) {
-                console.log("Zamykanie połączenia WS");
-                socket.close();
             }
+        };
+
+        socket.onerror = (err) => console.error("Błąd WebSocket:", err);
+
+        return () => {
+            console.log("Zamykanie połączenia WS (Czat i Ekipa)");
+            socket.close();
         };
     }, [id, isChatOpen]);
 

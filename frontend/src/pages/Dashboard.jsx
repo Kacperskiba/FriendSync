@@ -22,6 +22,7 @@ export default function Dashboard() {
     // Inicjalizacja z localStorage
     const [username, setUsername] = useState(localStorage.getItem('username') || 'Użytkownik');
     const [profileImage, setProfileImage] = useState(null);
+    const [currentUserId, setCurrentUserId] = useState(null);
 
     // Stany: Powiadomienia
     const [notifications, setNotifications] = useState([]);
@@ -73,6 +74,7 @@ export default function Dashboard() {
                 });
                 setUsername(res.data.username);
                 setProfileImage(res.data.profile_image); // Pobieramy zdjęcie z backendu
+                setCurrentUserId(res.data.id);
                 localStorage.setItem('username', res.data.username);
             } catch (err) {
                 console.error("Błąd profilu:", err);
@@ -129,6 +131,56 @@ export default function Dashboard() {
 
         return () => clearTimeout(delayDebounceFn);
     }, [searchQuery]);
+
+    useEffect(() => {
+        let socket;
+
+        if (currentUserId) {
+            const wsUrl = BASE_URL.replace('http', 'ws');
+            socket = new WebSocket(`${wsUrl}/ws/users/${currentUserId}`);
+
+            socket.onopen = () => console.log("Podłączono globalny system powiadomień!");
+
+            socket.onmessage = async (event) => {
+                const token = localStorage.getItem('token');
+
+                if (event.data === "new_friend_request") {
+                    console.log("Masz nowe zaproszenie do znajomych!");
+                    // Natychmiastowe dociągnięcie nowych zaproszeń z API
+                    try {
+                        const res = await axios.get(`${FRIENDS_API}/pending`, {
+                            headers: {Authorization: `Bearer ${token}`}
+                        });
+                        setPendingRequests(res.data);
+                    } catch (err) {
+                        console.error("Błąd pobierania nowych zaproszeń:", err);
+                    }
+                }
+                else if (event.data === "friend_request_accepted") {
+                    console.log("Ktoś zaakceptował Twoje zaproszenie!");
+                    // Natychmiastowe dociągnięcie zaktualizowanej listy znajomych
+                    try {
+                        const res = await axios.get(FRIENDS_API, {
+                            headers: {Authorization: `Bearer ${token}`}
+                        });
+                        setFriends(res.data);
+                    } catch (err) {
+                        console.error("Błąd pobierania listy znajomych:", err);
+                    }
+                }
+            };
+
+            socket.onerror = (err) => console.error("Błąd globalnego WS:", err);
+        }
+
+        // Cleanup przy wylogowaniu / zamykaniu okna
+        return () => {
+            if (socket) {
+                console.log("Odłączono globalny WS");
+                socket.close();
+            }
+        };
+    }, [currentUserId]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');

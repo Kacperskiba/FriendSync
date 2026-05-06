@@ -7,6 +7,8 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[int, List[WebSocket]] = {}
 
+        self.user_connections: Dict[int, List[WebSocket]] = {}
+
     async def connect(self, websocket: WebSocket, event_id: int):
         await websocket.accept()
         if event_id not in self.active_connections:
@@ -29,6 +31,27 @@ class ConnectionManager:
                     # Jeśli połączenie padło, zignoruj - zostanie usunięte przy rozłączeniu
                     pass
 
+    async def connect_user(self, websocket: WebSocket, user_id: int):
+        await websocket.accept()
+        if user_id not in self.user_connections:
+            self.user_connections[user_id] = []
+        self.user_connections[user_id].append(websocket)
+
+    def disconnect_user(self, websocket: WebSocket, user_id: int):
+        if user_id in self.user_connections:
+            self.user_connections[user_id].remove(websocket)
+            if not self.user_connections[user_id]:
+                del self.user_connections[user_id]
+
+    async def broadcast_to_user(self, user_id: int, message: str = "refresh"):
+        """Wysyła sygnał bezpośrednio do konkretnego użytkownika"""
+        if user_id in self.user_connections:
+            for connection in self.user_connections[user_id]:
+                try:
+                    await connection.send_text(message)
+                except:
+                    pass
+
 manager = ConnectionManager()
 
 @router.websocket("/ws/events/{event_id}")
@@ -40,3 +63,12 @@ async def websocket_endpoint(websocket: WebSocket, event_id: int):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, event_id)
+
+@router.websocket("/ws/users/{user_id}")
+async def user_websocket_endpoint(websocket: WebSocket, user_id: int):
+    await manager.connect_user(websocket, user_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect_user(websocket, user_id)
