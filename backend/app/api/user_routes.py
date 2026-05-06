@@ -34,6 +34,9 @@ async def register_user(
     if get_user_by_email(db, email):
         raise HTTPException(status_code=400, detail="Email zajęty")
 
+    if get_user_by_username(db, username):
+        raise HTTPException(status_code=400, detail="Nazwa użytkownika zajęta")
+
     file_path = None
     if profile_image:
         # Tworzymy folder jeśli nie istnieje
