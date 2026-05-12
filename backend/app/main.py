@@ -9,9 +9,9 @@ from app.api import location_routes
 from app.models import user, event, expense, location, message, friendship, notification
 from app.api import friend_routes
 from app.api import notification_routes
-from fastapi.staticfiles import StaticFiles  # <-- IMPORTUJ TO
+from fastapi.staticfiles import StaticFiles
 from app.api import websocket
-
+from app.models.sub_event import SubEvent
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(

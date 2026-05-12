@@ -3,6 +3,13 @@ import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import EventMapComponent from '../components/GlobalDashboardMap.jsx';
 
+// --- NOWE IMPORTY DLA KALENDARZA ---
+import DatePicker, { registerLocale } from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { pl } from "date-fns/locale";
+registerLocale("pl", pl); // Ustawiamy polski język (dni tygodnia, miesiące)
+// -----------------------------------
+
 import { API_BASE_URL } from '../services/api';
 const API_URL = `${API_BASE_URL}/api/events`;
 const FRIENDS_API = `${API_BASE_URL}/api/friends`;
@@ -14,10 +21,10 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Stany Modali i Menu
+    // Stany Modali i Menu (Zaktualizowane o event_date jako null dla kalendarza)
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-    const [newEventData, setNewEventData] = useState({title: '', description: ''});
+    const [newEventData, setNewEventData] = useState({title: '', description: '', event_date: null});
 
     // Inicjalizacja z localStorage
     const [username, setUsername] = useState(localStorage.getItem('username') || 'Użytkownik');
@@ -39,6 +46,7 @@ export default function Dashboard() {
 
     const [isGlobalMapOpen, setIsGlobalMapOpen] = useState(false);
 
+    // Stany edycji profilu
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({
         username: '',
@@ -52,6 +60,9 @@ export default function Dashboard() {
 
     const navigate = useNavigate();
     const menuRef = useRef(null);
+
+    // Stan do edycji wydarzenia
+    const [editingEvent, setEditingEvent] = useState(null);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -111,7 +122,7 @@ export default function Dashboard() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [navigate]);
 
-    // NOWY UseEffect: Automatyczne wyszukiwanie użytkowników przy pisaniu (Debounce)
+    // Automatyczne wyszukiwanie użytkowników przy pisaniu (Debounce)
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (searchQuery.length >= 2) {
@@ -132,6 +143,7 @@ export default function Dashboard() {
         return () => clearTimeout(delayDebounceFn);
     }, [searchQuery]);
 
+    // System powiadomień WebSocket
     useEffect(() => {
         let socket;
 
@@ -146,7 +158,6 @@ export default function Dashboard() {
 
                 if (event.data === "new_friend_request") {
                     console.log("Masz nowe zaproszenie do znajomych!");
-                    // Natychmiastowe dociągnięcie nowych zaproszeń z API
                     try {
                         const res = await axios.get(`${FRIENDS_API}/pending`, {
                             headers: {Authorization: `Bearer ${token}`}
@@ -158,7 +169,6 @@ export default function Dashboard() {
                 }
                 else if (event.data === "friend_request_accepted") {
                     console.log("Ktoś zaakceptował Twoje zaproszenie!");
-                    // Natychmiastowe dociągnięcie zaktualizowanej listy znajomych
                     try {
                         const res = await axios.get(FRIENDS_API, {
                             headers: {Authorization: `Bearer ${token}`}
@@ -173,7 +183,6 @@ export default function Dashboard() {
             socket.onerror = (err) => console.error("Błąd globalnego WS:", err);
         }
 
-        // Cleanup przy wylogowaniu / zamykaniu okna
         return () => {
             if (socket) {
                 console.log("Odłączono globalny WS");
@@ -188,22 +197,52 @@ export default function Dashboard() {
         navigate('/');
     };
 
+    // Zaktualizowana funkcja handleCreateEvent (Obsługuje POST i PUT)
     const handleCreateEvent = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem('token');
+
+        const payload = {
+            title: newEventData.title,
+            description: newEventData.description || null,
+            event_date: newEventData.event_date ? new Date(newEventData.event_date).toISOString() : null
+        };
+
         try {
-            const response = await axios.post(API_URL, newEventData, {
-                headers: {Authorization: `Bearer ${token}`}
-            });
-            setEvents([...events, response.data]);
+            if (editingEvent) {
+                // Tryb edycji
+                const response = await axios.put(`${API_URL}/${editingEvent.id}`, payload, {
+                    headers: {Authorization: `Bearer ${token}`}
+                });
+                setEvents(events.map(ev => ev.id === editingEvent.id ? response.data : ev));
+            } else {
+                // Tryb tworzenia
+                const response = await axios.post(API_URL, payload, {
+                    headers: {Authorization: `Bearer ${token}`}
+                });
+                setEvents([...events, response.data]);
+            }
+
             setIsModalOpen(false);
-            setNewEventData({title: '', description: ''});
+            setNewEventData({title: '', description: '', event_date: null});
+            setEditingEvent(null);
         } catch (err) {
-            alert("Nie udało się utworzyć wydarzenia.");
+            alert("Nie udało się zapisać wydarzenia.");
         }
     };
 
-    // ZAKTUALIZOWANA FUNKCJA: Zapraszanie ze wsparciem wyszukiwarki
+    const handleDeleteEvent = async (e, eventId) => {
+        e.stopPropagation();
+        if (!window.confirm("Czy na pewno chcesz usunąć to wydarzenie?")) return;
+
+        try {
+            await axios.delete(`${API_URL}/${eventId}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setEvents(events.filter(ev => ev.id !== eventId));
+        } catch (err) { alert("Błąd usuwania"); }
+    };
+
     const handleSendFriendRequest = async (e, directIdentifier = null) => {
         if (e) e.preventDefault();
 
@@ -269,13 +308,13 @@ export default function Dashboard() {
         return (
             <div
                 className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white shrink-0`}>
-                {name.substring(0, 1).toUpperCase()}
+                {name ? name.substring(0, 1).toUpperCase() : '?'}
             </div>
         );
     };
 
     const openEditModal = () => {
-        setEditData({username: username, email: '', password: ''}); // Możesz pobrać email z zapisanego profilu
+        setEditData({username: username, email: '', confirmEmail: '', password: '', confirmPassword: ''});
         setIsEditModalOpen(true);
     };
 
@@ -311,17 +350,21 @@ export default function Dashboard() {
         }
     };
 
+    const formatEventDate = (dateString) => {
+        if (!dateString) return "Brak daty";
+        return new Date(dateString).toLocaleDateString('pl-PL', {
+            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+    };
+
     return (
-        // RWD KONTENER: Na małych ekranach pozwala na scrollowanie (min-h-screen), a na dużych (xl:h-screen) blokuje je
         <div
             className="min-h-screen xl:h-screen bg-[#050505] text-white p-4 sm:p-6 md:p-8 font-sans relative flex flex-col overflow-x-hidden xl:overflow-hidden">
 
-            {/* Dekoracyjne tło */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
                 <div className="absolute -top-24 -left-24 w-96 h-96 bg-green-500/5 blur-[120px] rounded-full"></div>
             </div>
 
-            {/* HEADER - Z-INDEX 100: Gwarantuje, że menu wysunie się nad WSZYSTKIM innym */}
             <div
                 className="relative z-[100] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 max-w-[1600px] w-full mx-auto shrink-0">
                 <div>
@@ -334,14 +377,12 @@ export default function Dashboard() {
 
                 <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full lg:w-auto">
 
-                    {/* NOWY PRZYCISK MAPY GLOBALNEJ */}
                     <button
                         onClick={() => setIsGlobalMapOpen(true)}
                         className="bg-[#0f0f0f] hover:bg-[#151515] text-white font-black uppercase text-lg md:text-xl px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl"
                     >
                         🗺️
                     </button>
-                    {/* PRZYCISK DZWONKA */}
                     <button
                         onClick={() => setIsNotifOpen(true)}
                         className="relative bg-[#0f0f0f] hover:bg-[#151515] text-white font-black uppercase text-lg md:text-xl px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl"
@@ -353,21 +394,22 @@ export default function Dashboard() {
                         )}
                     </button>
 
-                    {/* PRZYCISK NOWE WYDARZENIE */}
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => {
+                            setEditingEvent(null);
+                            setNewEventData({title: '', description: '', event_date: null});
+                            setIsModalOpen(true);
+                        }}
                         className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-6 py-4 md:px-8 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-[0_10px_30px_rgba(34,197,94,0.2)] text-center"
                     >
                         + Nowe wydarzenie
                     </button>
 
-                    {/* MENU UŻYTKOWNIKA */}
                     <div className="relative w-full sm:w-auto mt-2 sm:mt-0" ref={menuRef}>
                         <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                                 className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 bg-[#0f0f0f] border border-white/5 p-2 pr-5 rounded-xl md:rounded-2xl hover:border-white/20 transition-all shadow-xl">
-                            {/* SZUKAJ TEGO FRAGMENTU W HEADERZE */}
                             <div className="flex items-center gap-3">
-                                {renderAvatar(profileImage, username)} {/* Zamiast starego div z inicjałem */}
+                                {renderAvatar(profileImage, username)}
                                 <span className="text-[10px] font-black uppercase tracking-widest block">
                                 {username}
                             </span>
@@ -408,13 +450,11 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* KONTENER ZAWARTOŚCI - Z-INDEX 40: Jest poniżej Headera */}
             <div
                 className="relative z-40 flex-1 flex flex-col xl:flex-row gap-8 lg:gap-10 max-w-[1600px] w-full mx-auto min-h-0">
 
                 {/* LEWA KOLUMNA: WYDARZENIA */}
                 <div className="flex-1 flex flex-col min-w-0 xl:overflow-hidden">
-                    {/* WŁASNY SCROLL DLA WYDARZEŃ TYLKO NA DESKTOPIE (xl) */}
                     <div className="flex-1 xl:overflow-y-auto pr-0 xl:pr-2 pb-6 xl:pb-10 custom-scrollbar">
                         {loading && (
                             <div className="flex flex-col items-center mt-20 gap-4">
@@ -433,7 +473,11 @@ export default function Dashboard() {
                                 <p className="text-gray-500 mb-8 font-black uppercase tracking-widest text-xs md:text-sm">Baza
                                     jest pusta.</p>
                                 <button
-                                    onClick={() => setIsModalOpen(true)}
+                                    onClick={() => {
+                                        setEditingEvent(null);
+                                        setNewEventData({title: '', description: '', event_date: null});
+                                        setIsModalOpen(true);
+                                    }}
                                     className="w-full sm:w-auto bg-white text-black font-black uppercase text-[10px] md:text-xs tracking-widest px-8 py-4 md:px-10 md:py-5 rounded-xl md:rounded-2xl hover:bg-green-500 transition-all"
                                 >
                                     Stwórz pierwsze wydarzenie
@@ -447,46 +491,66 @@ export default function Dashboard() {
                                     <div
                                         key={event.id}
                                         onClick={() => navigate(`/events/${event.id}`)}
-                                        className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl"
+                                        className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl flex flex-col"
                                     >
-                                        <div className="relative z-10">
-                                            <div className="flex justify-between items-start mb-6">
-                                                {/* Zmieniona ikona z mapy na status/piorun/kalendarz lub cokolwiek co nie jest mapą */}
+                                        <div className="flex gap-2 relative z-20 mb-4 justify-end">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingEvent(event);
+                                                    setNewEventData({
+                                                        title: event.title,
+                                                        description: event.description || '',
+                                                        event_date: event.event_date ? new Date(event.event_date) : null
+                                                    });
+                                                    setIsModalOpen(true);
+                                                }}
+                                                className="hover:text-green-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
+                                            >✏️</button>
+                                            <button
+                                                onClick={(e) => handleDeleteEvent(e, event.id)}
+                                                className="hover:text-red-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
+                                            >🗑️</button>
+                                        </div>
+                                        <div className="relative z-10 flex flex-col h-full">
+                                            <div className="flex justify-between items-start mb-4">
                                                 <div
                                                     className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-lg md:text-xl grayscale group-hover:grayscale-0 group-hover:scale-110 transition-all">
                                                     📅
                                                 </div>
                                                 <span
                                                     className="text-[8px] md:text-[9px] font-black text-gray-700 uppercase tracking-widest bg-black px-3 py-1 rounded-full border border-white/5">
-                                    ID: {event.id}
-                                </span>
+                                                    ID: {event.id}
+                                                </span>
                                             </div>
 
                                             <h2 className="text-xl md:text-2xl font-black italic tracking-tighter uppercase mb-3 group-hover:text-green-500 transition-colors">
                                                 {event.title}
                                             </h2>
 
-                                            {event.description && (
-                                                <p className="text-gray-500 text-[10px] md:text-xs font-bold leading-relaxed line-clamp-2 mb-8">
-                                                    {event.description}
+                                            <div className="flex flex-col gap-1 mb-4 border-l-2 border-green-600 pl-3">
+                                                <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                                    🗓️ {formatEventDate(event.event_date)}
                                                 </p>
-                                            )}
+                                            </div>
 
-                                            {/* Dolna sekcja bez przycisku mapy */}
+                                            <p className="text-gray-500 text-[10px] md:text-xs font-bold leading-relaxed line-clamp-2 mb-6 flex-1">
+                                                {event.description || "Brak opisu."}
+                                            </p>
+
                                             <div
-                                                className="pt-6 border-t border-white/5 flex justify-between items-center">
-                                <span
-                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-green-500/50 group-hover:text-green-500 transition-colors">
-                                    Szczegóły →
-                                </span>
+                                                className="pt-6 border-t border-white/5 flex justify-between items-center mt-auto">
+                                                <span
+                                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-green-500/50 group-hover:text-green-500 transition-colors">
+                                                    Szczegóły →
+                                                </span>
                                                 <span
                                                     className="text-[8px] md:text-[9px] text-gray-700 font-black uppercase tracking-widest">
-                                    {new Date(event.created_at).toLocaleDateString()}
-                                </span>
+                                                    {new Date(event.created_at).toLocaleDateString()}
+                                                </span>
                                             </div>
                                         </div>
 
-                                        {/* Subtelny gradient hover */}
                                         <div
                                             className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                     </div>
@@ -497,7 +561,6 @@ export default function Dashboard() {
                 </div>
 
                 {/* PRAWA KOLUMNA: SIDEBAR ZNAJOMYCH */}
-                {/* RWD: Na telefonie ma sztywną wysokość np. 500px, na PC rozciąga się na h-full */}
                 <div className="w-full xl:w-[450px] shrink-0 flex flex-col h-[500px] xl:h-full pb-8 xl:pb-0">
                     <div
                         className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col flex-1 min-h-0">
@@ -505,7 +568,6 @@ export default function Dashboard() {
                         <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase mb-6 shrink-0">Twoja <span
                             className="text-green-500">Ekipa.</span></h2>
 
-                        {/* Zakładki */}
                         <div
                             className="flex flex-col sm:flex-row gap-2 mb-6 bg-black p-1 rounded-2xl border border-white/5 shrink-0">
                             <button
@@ -524,12 +586,10 @@ export default function Dashboard() {
                             </button>
                         </div>
 
-                        {/* Zawartość zakładek */}
                         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                             {activeFriendTab === 'list' && (
                                 <div className="space-y-6">
 
-                                    {/* NOWA SEKCJA WYSZUKIWARKI I ZAPRASZANIA */}
                                     <div className="relative">
                                         <form onSubmit={(e) => handleSendFriendRequest(e)}
                                               className="flex flex-col sm:flex-row gap-2 relative z-20">
@@ -544,7 +604,6 @@ export default function Dashboard() {
                                             </button>
                                         </form>
 
-                                        {/* DROPDOWN PODPOWIEDZI */}
                                         {suggestions.length > 0 && (
                                             <div
                                                 className="absolute top-[110%] left-0 right-0 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
@@ -555,7 +614,6 @@ export default function Dashboard() {
                                                         className="p-4 border-b border-white/5 hover:bg-[#252525] cursor-pointer transition-all flex items-center justify-between group"
                                                     >
                                                         <div className="flex items-center gap-4">
-                                                            {/* Awatar z Twojej funkcji renderującej */}
                                                             {renderAvatar(user.profile_image, user.username, "w-10 h-10")}
                                                             <div>
                                                                 <p className="font-bold text-sm text-gray-200 group-hover:text-green-500 transition-colors">{user.username}</p>
@@ -580,7 +638,7 @@ export default function Dashboard() {
                                             friends.map(friend => (
                                                 <div key={friend.id}
                                                      className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex items-center gap-4">
-                                                    {renderAvatar(friend.profile_image, friend.username)} {/* Zamiast starego div */}
+                                                    {renderAvatar(friend.profile_image, friend.username)}
                                                     <div className="min-w-0 flex-1">
                                                         <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{friend.username}</p>
                                                         <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600 truncate">{friend.email}</p>
@@ -602,7 +660,7 @@ export default function Dashboard() {
                                             <div key={req.friendship_id}
                                                  className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex flex-col gap-3">
                                                 <div className="flex items-center gap-3">
-                                                    {renderAvatar(req.user.profile_image, req.user.username, "w-8 h-8")} {/* Dodane zdjęcie */}
+                                                    {renderAvatar(req.user.profile_image, req.user.username, "w-8 h-8")}
                                                     <div>
                                                         <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{req.user.username}</p>
                                                         <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600">chce
@@ -626,18 +684,20 @@ export default function Dashboard() {
 
             </div>
 
-            {/* MODAL: TWORZENIE WYDARZENIA */}
+            {/* MODAL: TWORZENIE/EDYCJA WYDARZENIA Z KALENDARZEM REACT-DATEPICKER */}
             {isModalOpen && (
                 <div
                     className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[200] backdrop-blur-xl">
                     <div
-                        className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 w-full max-w-md border border-white/10 shadow-2xl relative">
+                        className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 w-full max-w-lg border border-white/10 shadow-2xl relative">
                         <button onClick={() => setIsModalOpen(false)}
                                 className="absolute top-4 md:top-6 right-6 md:right-8 text-gray-500 hover:text-white font-bold text-xl">✕
                         </button>
-                        <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase text-center mb-6 md:mb-8">Nowy <span
-                            className="text-green-500">Projekt.</span></h2>
-                        <form onSubmit={handleCreateEvent} className="space-y-4 md:space-y-6">
+                        <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase text-center mb-6 md:mb-8">
+                            {editingEvent ? "Edytuj " : "Nowy "}<span className="text-green-500">Projekt.</span>
+                        </h2>
+
+                        <form onSubmit={handleCreateEvent} className="space-y-4 md:space-y-5">
                             <div>
                                 <label
                                     className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Tytuł
@@ -650,22 +710,44 @@ export default function Dashboard() {
                                     onChange={(e) => setNewEventData({...newEventData, title: e.target.value})}
                                 />
                             </div>
+
+                            {/* NOWE POLE DATEPICKER */}
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Data i godzina startu</label>
+                                <div className="relative w-full">
+                                    <DatePicker
+                                        selected={newEventData.event_date}
+                                        onChange={(date) => setNewEventData({...newEventData, event_date: date})}
+                                        showTimeSelect
+                                        timeFormat="HH:mm"
+                                        timeIntervals={15}
+                                        timeCaption="Czas"
+                                        dateFormat="d MMMM yyyy, HH:mm"
+                                        locale="pl"
+                                        placeholderText="Wybierz datę z kalendarza..."
+                                        className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 cursor-pointer"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs z-10">🗓️</span>
+                                </div>
+                            </div>
+
                             <div>
                                 <label
                                     className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Krótki
                                     opis</label>
                                 <textarea
-                                    rows={3}
-                                    className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 resize-none"
+                                    rows={2}
+                                    className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 resize-none custom-scrollbar"
                                     placeholder="O czym warto pamiętać?"
                                     value={newEventData.description}
                                     onChange={(e) => setNewEventData({...newEventData, description: e.target.value})}
                                 />
                             </div>
+
                             <div className="pt-2">
                                 <button type="submit"
                                         className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest py-4 md:py-5 rounded-xl md:rounded-2xl shadow-xl shadow-green-900/20 transition-all">
-                                    Zapisz
+                                    {editingEvent ? 'Zapisz zmiany' : 'Stwórz'}
                                 </button>
                             </div>
                         </form>
@@ -713,6 +795,8 @@ export default function Dashboard() {
                     </div>
                 </div>
             )}
+
+            {/* MODAL: EDYCJA PROFILU */}
             {isEditModalOpen && (
                 <div
                     className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[210] backdrop-blur-xl">
@@ -725,7 +809,6 @@ export default function Dashboard() {
                             className="text-green-500">Profil.</span></h2>
 
                         <form onSubmit={handleUpdateProfile} className="space-y-4">
-                            {/* Zmiana zdjęcia */}
                             <div className="flex flex-col items-center mb-6">
                                 <div
                                     onClick={() => editFileInputRef.current.click()}
@@ -751,7 +834,6 @@ export default function Dashboard() {
                                 onChange={(e) => setEditData({...editData, username: e.target.value})}
                             />
 
-                            {/* EMAIL + POWTÓRZENIE */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <input
                                     type="email" placeholder="Nowy email"
@@ -767,7 +849,6 @@ export default function Dashboard() {
                                 />
                             </div>
 
-                            {/* HASŁO + POWTÓRZENIE */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <input
                                     type="password" placeholder="Nowe hasło"
@@ -796,7 +877,6 @@ export default function Dashboard() {
                     <div
                         className="bg-[#0f0f0f] border border-white/10 rounded-[2rem] md:rounded-[3rem] w-full h-full max-w-[1400px] overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.8)]">
 
-                        {/* Header Modalu */}
                         <div className="p-6 md:p-8 border-b border-white/5 flex justify-between items-center bg-[#111]">
                             <div>
                                 <h2 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter">
@@ -814,13 +894,10 @@ export default function Dashboard() {
                             </button>
                         </div>
 
-                        {/* Kontener Mapy */}
                         <div className="flex-1 relative bg-black">
-                            {/* Tutaj renderujemy Twój komponent mapy */}
                             <EventMapComponent/>
                         </div>
 
-                        {/* Footer Modalu (opcjonalny) */}
                         <div className="p-4 bg-[#0a0a0a] text-center">
                             <p className="text-[8px] font-black uppercase text-gray-700 tracking-[0.3em]">
                                 Tryb podglądu • Aby dodać punkt, wejdź w konkretne wydarzenie
@@ -829,6 +906,25 @@ export default function Dashboard() {
                     </div>
                 </div>
             )}
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                .react-datepicker-wrapper { width: 100%; display: block; }
+                .react-datepicker { background-color: #0f0f0f !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 1rem !important; color: white !important; font-family: inherit !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+                .react-datepicker__header { background-color: #050505 !important; border-bottom: 1px solid rgba(255,255,255,0.05) !important; border-top-left-radius: 1rem !important; border-top-right-radius: 1rem !important; padding-top: 15px; }
+                .react-datepicker__current-month, .react-datepicker-time__header, .react-datepicker__day-name { color: #fff !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 0.1em; font-size: 0.7rem; }
+                .react-datepicker__day { color: #aaa !important; border-radius: 0.5rem !important; transition: all 0.2s; }
+                .react-datepicker__day:hover { background-color: rgba(34,197,94,0.2) !important; color: #22c55e !important; }
+                .react-datepicker__day--selected, .react-datepicker__day--keyboard-selected { background-color: #16a34a !important; color: white !important; font-weight: 900 !important; }
+                .react-datepicker__time-container { border-left: 1px solid rgba(255,255,255,0.05) !important; }
+                .react-datepicker__time { background-color: #0f0f0f !important; border-top-right-radius: 1rem !important; border-bottom-right-radius: 1rem !important; }
+                .react-datepicker__time-list-item { color: #aaa !important; font-size: 0.8rem; transition: all 0.2s; }
+                .react-datepicker__time-list-item:hover { background-color: rgba(34,197,94,0.2) !important; color: #22c55e !important; }
+                .react-datepicker__time-list-item--selected { background-color: #16a34a !important; color: white !important; font-weight: bold !important; }
+                .react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle::before, .react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle::after { border-bottom-color: #0f0f0f !important; }
+                .react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::before, .react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::after { border-top-color: #0f0f0f !important; }
+            `
+            }}/>
         </div>
     );
 }

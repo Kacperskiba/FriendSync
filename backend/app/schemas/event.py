@@ -1,20 +1,48 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
-# Baza: Co wspólnego ma tworzenie i odczytywanie wydarzenia?
-class EventBase(BaseModel):
-    title: str = Field(..., min_length=3, max_length=100, description="Tytuł wydarzenia")
-    description: Optional[str] = Field(None, description="Opcjonalny opis")
 
-# Co przyjmujemy z Frontendu? (Tylko tytuł i opis)
-class EventCreate(EventBase):
-    pass
+class SubEventCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    start_time: Optional[datetime] = None
 
-# Co wysyłamy do Frontendu? (Dodajemy ID, ID twórcy i datę utworzenia)
-class EventResponse(EventBase):
+
+class SubEventResponse(BaseModel):
     id: int
+    event_id: int
+    title: str
+    description: Optional[str]
+    start_time: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    event_date: Optional[datetime] = None
+
+
+class EventResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    event_date: Optional[datetime]
     creator_id: int
     created_at: datetime
+
+    sub_events: List[SubEventResponse] = []
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    event_date: Optional[datetime] = None
+
+class SubEventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    start_time: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

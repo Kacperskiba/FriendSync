@@ -6,7 +6,8 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.api.dependencies import get_current_user
 from app.schemas.event import EventCreate, EventResponse
-from app.crud.event import create_event, get_user_events, get_event, get_participant, add_user_to_event
+from app.crud.event import create_event, get_user_events, get_event, get_participant, add_user_to_event, delete_event, \
+    update_sub_event, update_event, delete_sub_event
 from app.crud.user import get_user_by_email
 from app.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
@@ -14,6 +15,16 @@ from app.crud.message import create_message, get_event_messages
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, FinanceSummaryResponse
 from app.crud.expense import create_expense, get_event_expenses, calculate_finance_summary
 from app.api.websocket import manager
+from app.schemas.event import SubEventCreate, SubEventResponse
+from app.crud.event import create_sub_event
+
+from app.schemas.event import EventUpdate, SubEventUpdate
+from app.api.websocket import manager
+
+from app.models.event import Event
+
+from app.models.sub_event import SubEvent
+
 
 class EventInvite(BaseModel):
     email: str
@@ -193,7 +204,7 @@ def read_event_expenses(
     return get_event_expenses(db=db, event_id=event_id)
 
 
-# --- FINANSE: PODSUMOWANIE I WYRÓWNANIE DŁUGÓW ---
+
 @router.get("/{event_id}/finances/summary", response_model=FinanceSummaryResponse)
 def get_event_finance_summary(
         event_id: int,
@@ -209,3 +220,51 @@ def get_event_finance_summary(
         raise HTTPException(status_code=403, detail="Nie masz dostępu do tego wydarzenia.")
 
     return calculate_finance_summary(db=db, event_id=event_id)
+
+@router.post("/{event_id}/sub-events", response_model=SubEventResponse)
+def add_sub_event(event_id: int, sub_event: SubEventCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return create_sub_event(db=db, event_id=event_id, sub_event=sub_event)
+
+
+# Edycja wydarzenia
+@router.put("/{event_id}", response_model=EventResponse)
+async def edit_event(event_id: int, event_update: EventUpdate, db: Session = Depends(get_db),
+                     current_user: User = Depends(get_current_user)):
+    db_event = db.query(Event).filter(Event.id == event_id).first()
+    if not db_event or db_event.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Brak uprawnień do edycji")
+
+    updated = update_event(db, event_id, event_update)
+    await manager.broadcast(event_id)  # Powiadom innych
+    return updated
+
+
+# Usuwanie wydarzenia
+@router.delete("/{event_id}")
+async def remove_event(event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_event = db.query(Event).filter(Event.id == event_id).first()
+    if not db_event or db_event.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Brak uprawnień")
+
+    delete_event(db, event_id)
+    # Tutaj też możemy dać await manager.broadcast(event_id), żeby wyrzucić ludzi z usuniętego wydarzenia
+    return {"message": "Wydarzenie usunięte"}
+
+# Edycja SubEventu
+@router.put("/sub-events/{sub_event_id}", response_model=SubEventResponse)
+async def edit_sub_event(sub_event_id: int, sub_update: SubEventUpdate, db: Session = Depends(get_db)):
+    updated = update_sub_event(db, sub_event_id, sub_update)
+    if updated:
+        await manager.broadcast(updated.event_id)
+    return updated
+
+
+# Usuwanie SubEventu
+@router.delete("/sub-events/{sub_event_id}")
+async def remove_sub_event(sub_event_id: int, db: Session = Depends(get_db)):
+    db_sub = db.query(SubEvent).filter(SubEvent.id == sub_event_id).first()
+    if db_sub:
+        event_id = db_sub.event_id
+        delete_sub_event(db, sub_event_id)
+        await manager.broadcast(event_id)
+    return {"message": "Punkt usunięty"}
