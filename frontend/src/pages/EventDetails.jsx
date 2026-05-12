@@ -3,12 +3,15 @@ import {useParams, useNavigate} from 'react-router-dom';
 import axios from 'axios';
 import EventMapComponent from '../components/EventMapComponent';
 
-// --- NOWY KALENDARZ ---
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { pl } from "date-fns/locale";
 registerLocale("pl", pl);
-
+import {
+    Bell, Map, CalendarDays, Trash2, Pencil, MapPin,
+    MessageSquare, Wallet, LogOut, Settings, User,
+    Plus, ChevronDown, X, Check, Send
+} from 'lucide-react';
 import { API_BASE_URL } from '../services/api';
 const API_URL = `${API_BASE_URL}/api/events`;
 const FRIENDS_API = `${API_BASE_URL}/api/friends`;
@@ -32,12 +35,13 @@ export default function EventDetails() {
     const [newMessage, setNewMessage] = useState('');
     const [currentUserId, setCurrentUserId] = useState(null);
 
-    // --- STANY HARMONOGRAMU ---
     const [isAddingSubEvent, setIsAddingSubEvent] = useState(false);
     const [editingSubEventId, setEditingSubEventId] = useState(null);
     const [newSubEvent, setNewSubEvent] = useState({ title: '', description: '', start_time: null });
 
-    // --- LOGIKA POBIERANIA DANYCH ---
+    const [isEditingEventInfo, setIsEditingEventInfo] = useState(false);
+    const [editEventData, setEditEventData] = useState({ title: '', description: '', event_date: null });
+
     const fetchEventData = async () => {
         const token = localStorage.getItem('token');
         try {
@@ -89,7 +93,6 @@ export default function EventDetails() {
 
     useEffect(() => { if (isChatOpen) fetchMessages(); }, [isChatOpen]);
 
-    // --- WEBSOCKETS ---
     useEffect(() => {
         const wsUrl = BASE_URL.replace('http', 'ws');
         const socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
@@ -98,7 +101,6 @@ export default function EventDetails() {
 
         socket.onmessage = (eventMsg) => {
             if (eventMsg.data === "refresh") {
-                console.log("Zmiana w wydarzeniu! Odświeżam...");
                 fetchEventData();
                 fetchParticipants();
                 if (isChatOpen) fetchMessages();
@@ -107,15 +109,11 @@ export default function EventDetails() {
 
         socket.onerror = (err) => console.error("Błąd WebSocket:", err);
 
-        return () => {
-            console.log("Zamykanie połączenia WS");
-            socket.close();
-        };
+        return () => socket.close();
     }, [id, isChatOpen]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({behavior: "smooth"}); }, [messages]);
 
-    // --- HANDLERY ---
     const handleInvite = async (e, directIdentifier = null) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         const targetIdentifier = directIdentifier || searchQuery;
@@ -170,6 +168,30 @@ export default function EventDetails() {
         } catch (err) { alert("Błąd usuwania punktu."); }
     };
 
+    const handleUpdateEventInfo = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem('token');
+        try {
+            const payload = {
+                title: editEventData.title,
+                description: editEventData.description || null,
+                event_date: editEventData.event_date ? new Date(editEventData.event_date).toISOString() : null
+            };
+            await axios.put(`${API_URL}/${id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+            setIsEditingEventInfo(false);
+            fetchEventData();
+        } catch (err) { alert("Błąd aktualizacji wydarzenia."); }
+    };
+
+    const openEditEventInfo = () => {
+        setEditEventData({
+            title: event.title,
+            description: event.description || '',
+            event_date: event.event_date ? new Date(event.event_date) : null
+        });
+        setIsEditingEventInfo(true);
+    };
+
     const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10") => {
         if (imageUrl) {
             return (
@@ -200,57 +222,105 @@ export default function EventDetails() {
         return new Date(a.start_time) - new Date(b.start_time);
     }) : [];
 
+    const isOwner = event.creator_id === currentUserId || event.owner_id === currentUserId;
+
     return (
-        <div className="min-h-screen bg-[#050505] text-white font-sans p-6 md:p-12 relative">
+        // Zmniejszone marginesy (p-4 sm:p-6 md:p-8 zamiast p-12)
+        <div className="min-h-screen bg-[#050505] text-white font-sans p-4 sm:p-6 md:p-8 relative">
             <div className="fixed top-0 right-0 w-1/2 h-1/2 bg-green-500/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-            {/* NAWIGACJA GÓRNA */}
-            <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6 relative z-10">
+            {/* NAWIGACJA GÓRNA - max-w-[1600px] */}
+            <div className="max-w-[1600px] w-full mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-8 md:mb-12 gap-6 relative z-10">
                 <button onClick={() => navigate('/dashboard')} className="text-gray-600 hover:text-white flex items-center gap-2 font-black uppercase text-[10px] tracking-[0.3em] transition-all">
                     ← Powrót
                 </button>
                 <div className="flex gap-4 w-full md:w-auto">
-                    <button onClick={() => setIsMapOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all">📍 Mapa</button>
-                    <button onClick={() => setIsChatOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all">💬 Czat</button>
-                    <button onClick={() => navigate(`/events/${id}/finance`)} className="flex-1 md:flex-none bg-green-600 hover:bg-green-500 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-green-900/20 transition-all">💸 Portfel</button>
+                    <button onClick={() => setIsMapOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all shadow-lg"><MapPin size={16} /></button>
+                    <button onClick={() => setIsChatOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all shadow-lg"><MessageSquare size={16} /></button>
+                    <button onClick={() => navigate(`/events/${id}/finance`)} className="flex-1 md:flex-none bg-green-600 hover:bg-green-500 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-green-900/20 transition-all"><Wallet size={16} /></button>
                 </div>
             </div>
 
-            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+            {/* GŁÓWNY GRID ZAMIENIONY NA FLEX (max-w-[1600px]) */}
+            <div className="max-w-[1600px] w-full mx-auto flex flex-col xl:flex-row gap-8 lg:gap-10 relative z-10">
 
                 {/* LEWA KOLUMNA: INFO + HARMONOGRAM */}
-                <div className="md:col-span-2 flex flex-col gap-8">
+                <div className="flex-1 flex flex-col gap-8 min-w-0">
 
-                    {/* INFO */}
-                    <div className="bg-[#0f0f0f] rounded-[3rem] p-10 border border-white/5 shadow-2xl relative overflow-hidden group">
+                    {/* INFO Z EDYCJĄ */}
+                    <div className={`bg-[#0f0f0f] rounded-[3rem] p-8 md:p-10 border border-white/5 shadow-2xl relative group ${isEditingEventInfo ? '' : 'overflow-hidden'}`}>
                         <div className="absolute top-0 right-0 p-10 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
-                            <span className="text-[120px] font-black italic uppercase leading-none">INFO</span>
+                            <span className="text-[100px] md:text-[120px] font-black italic uppercase leading-none">INFO</span>
                         </div>
-                        <h1 className="text-5xl font-black italic uppercase tracking-tighter mb-6 leading-none">
-                            {event.title}<span className="text-green-500">.</span>
-                        </h1>
-                        <p className="text-gray-500 text-lg font-bold leading-relaxed mb-10 max-w-xl">
-                            {event.description || "Brak opisu wydarzenia."}
-                        </p>
 
-                        <div className="pt-8 border-t border-white/5 flex flex-wrap items-center gap-4 relative z-10">
-                            {event.event_date && (
-                                <div className="px-4 py-2 bg-black rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-widest text-green-500">
-                                    🗓️ {new Date(event.event_date).toLocaleDateString('pl-PL')}
+                        {isOwner && !isEditingEventInfo && (
+                            <button onClick={openEditEventInfo} className="absolute top-6 right-6 md:top-8 md:right-8 bg-black/50 p-3 rounded-xl border border-white/5 hover:text-green-500 transition-colors z-20 shadow-lg">
+                                <Pencil size={18} />
+                            </button>
+                        )}
+
+                        {isEditingEventInfo ? (
+                            <form onSubmit={handleUpdateEventInfo} className="relative z-10 space-y-4">
+                                <input
+                                    type="text" required
+                                    className="w-full bg-[#050505] border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 text-2xl md:text-3xl font-black italic uppercase text-white shadow-inner"
+                                    value={editEventData.title}
+                                    onChange={e => setEditEventData({...editEventData, title: e.target.value})}
+                                />
+
+                                <div className="relative w-full z-50">
+                                    <DatePicker
+                                        selected={editEventData.event_date}
+                                        onChange={(date) => setEditEventData({...editEventData, event_date: date})}
+                                        showTimeSelect timeFormat="HH:mm" timeIntervals={15} timeCaption="Czas" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
+                                        placeholderText="Wybierz nową datę z kalendarza..."
+                                        className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 cursor-pointer"
+                                    />
+                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs"><CalendarDays size={24} /></span>
                                 </div>
-                            )}
-                            <div className="px-4 py-2 bg-black rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                Status: Aktywne
+
+                                <textarea
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 resize-none custom-scrollbar"
+                                    rows={4} placeholder="Zmień opis..."
+                                    value={editEventData.description}
+                                    onChange={e => setEditEventData({...editEventData, description: e.target.value})}
+                                />
+
+                                <div className="flex gap-3 pt-4">
+                                    <button type="submit" className="flex-1 bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[10px] py-4 rounded-xl transition-all shadow-lg shadow-green-900/20">Zapisz Zmiany</button>
+                                    <button type="button" onClick={() => setIsEditingEventInfo(false)} className="flex-1 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] py-4 rounded-xl transition-all">Anuluj</button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="relative z-10">
+                                <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter mb-6 leading-none pr-12">
+                                    {event.title}<span className="text-green-500">.</span>
+                                </h1>
+                                <p className="text-gray-500 text-sm md:text-lg font-bold leading-relaxed mb-10 max-w-xl">
+                                    {event.description || "Brak opisu wydarzenia."}
+                                </p>
+
+                                <div className="pt-8 border-t border-white/5 flex flex-wrap items-center gap-4 relative z-10">
+                                    {event.event_date && (
+                                        <div className="px-4 py-2 bg-black rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-widest text-green-500 shadow-md">
+                                            <CalendarDays size={24} /> {new Date(event.event_date).toLocaleString('pl-PL', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
+                                        </div>
+                                    )}
+                                    <div className="px-4 py-2 bg-black rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                        Status: Aktywne
+                                    </div>
+                                    <div className="text-[9px] font-black uppercase tracking-widest text-gray-700">
+                                        Utworzono: {new Date(event.created_at).toLocaleDateString()}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-gray-700">
-                                Utworzono: {new Date(event.created_at).toLocaleDateString()}
-                            </div>
-                        </div>
+                        )}
                     </div>
-        {/* HARMONOGRAM (TIMELINE) */}
-                    <div className="bg-[#0f0f0f] rounded-[3rem] p-10 border border-white/5 shadow-2xl relative flex flex-col max-h-[800px]">
-                        <div className="flex justify-between items-center mb-10 shrink-0">
-                            <h2 className="text-3xl font-black italic uppercase tracking-tighter leading-none">
+
+                    {/* HARMONOGRAM (TIMELINE) */}
+                    <div className="bg-[#0f0f0f] rounded-[3rem] p-8 md:p-10 border border-white/5 shadow-2xl relative flex flex-col h-[600px]">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 shrink-0 gap-4">
+                            <h2 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter leading-none">
                                 Plan <span className="text-green-500">Wyjazdu.</span>
                             </h2>
                             <button
@@ -261,15 +331,14 @@ export default function EventDetails() {
                                         setNewSubEvent({title: '', description: '', start_time: null});
                                     }
                                 }}
-                                className="bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl font-black uppercase text-[9px] tracking-widest transition-all"
+                                className="w-full sm:w-auto bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl font-black uppercase text-[9px] tracking-widest transition-all shrink-0"
                             >
                                 {isAddingSubEvent ? 'Anuluj' : '+ Dodaj punkt'}
                             </button>
                         </div>
 
-                        {/* FORMULARZ Z DATEPICKEREM */}
                         {isAddingSubEvent && (
-                            <form onSubmit={handleSaveSubEvent} className="bg-black border border-white/5 rounded-2xl p-6 mb-10 shrink-0 animate-in fade-in slide-in-from-top-4">
+                            <form onSubmit={handleSaveSubEvent} className="bg-black border border-white/5 rounded-2xl p-6 mb-8 shrink-0 animate-in fade-in slide-in-from-top-4 z-20">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="text-[8px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Tytuł / Aktywność</label>
@@ -281,16 +350,11 @@ export default function EventDetails() {
                                             <DatePicker
                                                 selected={newSubEvent.start_time}
                                                 onChange={(date) => setNewSubEvent({...newSubEvent, start_time: date})}
-                                                showTimeSelect
-                                                timeFormat="HH:mm"
-                                                timeIntervals={15}
-                                                timeCaption="Czas"
-                                                dateFormat="d MMMM yyyy, HH:mm"
-                                                locale="pl"
+                                                showTimeSelect timeFormat="HH:mm" timeIntervals={15} timeCaption="Czas" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
                                                 placeholderText="Wybierz z kalendarza..."
                                                 className="w-full bg-[#0a0a0a] border border-white/5 rounded-xl px-5 py-3 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 cursor-pointer"
                                             />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs z-10">🗓️</span>
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs z-10"><CalendarDays size={24} /></span>
                                         </div>
                                     </div>
                                 </div>
@@ -304,7 +368,6 @@ export default function EventDetails() {
                             </form>
                         )}
 
-                        {/* OŚ CZASU - DODANY SCROLL TUTAJ */}
                         <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar">
                             {sortedSubEvents.length === 0 ? (
                                 <p className="text-gray-600 text-center font-black uppercase text-[10px] tracking-[0.3em] py-8">Jeszcze nic nie zaplanowano.</p>
@@ -327,8 +390,8 @@ export default function EventDetails() {
                                                             setIsAddingSubEvent(true);
                                                         }}
                                                         className="p-2 bg-black rounded-lg border border-white/5 hover:text-green-500 transition-colors shadow-lg"
-                                                    >✏️</button>
-                                                    <button onClick={() => handleDeleteSubEvent(subEvent.id)} className="p-2 bg-black rounded-lg border border-white/5 hover:text-red-500 transition-colors shadow-lg">🗑️</button>
+                                                    ><Pencil size={18} /></button>
+                                                    <button onClick={() => handleDeleteSubEvent(subEvent.id)} className="p-2 bg-black rounded-lg border border-white/5 hover:text-red-500 transition-colors shadow-lg"><Trash2 size={18} /></button>
                                                 </div>
 
                                                 <div className="text-[10px] font-black text-green-500 tracking-widest uppercase mb-1">
@@ -346,68 +409,74 @@ export default function EventDetails() {
                         </div>
                     </div>
                 </div>
+        {/* PRAWA KOLUMNA: EKIPA + MAPA WBUDOWANA */}
+                {/* Szersza kolumna: 500px, a na super-dużych ekranach 550px */}
+                <div className="w-full xl:w-[500px] 2xl:w-[550px] shrink-0 flex flex-col gap-8 h-fit">
 
-                {/* PRAWA KOLUMNA: EKIPA + SZUKAJ */}
-                <div className="bg-[#0f0f0f] rounded-[3rem] p-8 border border-white/5 shadow-2xl h-fit">
-                    <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px] mb-6">Ekipa</h3>
+                    {/* KARTA EKIPY */}
+                    <div className="bg-[#0f0f0f] rounded-[3rem] p-8 border border-white/5 shadow-2xl">
+                        <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px] mb-6">Ekipa</h3>
 
-                    <div className="relative mb-8">
-                        <form onSubmit={handleInvite} className="flex flex-col gap-2 relative z-20">
-                            <input
-                                type="text"
-                                required
-                                placeholder="Nick lub e-mail..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs text-gray-200"
-                            />
-                            <button type="submit"
-                                    className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[10px] py-4 rounded-2xl transition-all shadow-xl shadow-green-900/20">
-                                Zaproś
-                            </button>
-                        </form>
-                        {suggestions.length > 0 && (
-                            <div className="absolute top-[105%] left-0 right-0 bg-[#151515] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
-                                {suggestions.map(user => (
-                                    <div key={user.id} onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        handleInvite(null, user.email);
-                                    }}
-                                         className="p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer flex items-center gap-3">
-                                        {renderAvatar(user.profile_image, user.username, "w-8 h-8")}
-                                        <div>
-                                            <p className="font-bold text-[11px] text-gray-200">{user.username}</p>
-                                            <p className="text-[8px] font-black uppercase text-gray-600">{user.email}</p>
+                        <div className="relative mb-8">
+                            <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-2 relative z-20">
+                                <input
+                                    type="text" required placeholder="Nick lub e-mail..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="flex-1 w-full bg-black border border-white/5 rounded-2xl px-5 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs text-gray-200"
+                                />
+                                <button type="submit" className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[10px] py-4 px-6 rounded-2xl transition-all shadow-xl shadow-green-900/20">
+                                    Zaproś
+                                </button>
+                            </form>
+                            {suggestions.length > 0 && (
+                                <div className="absolute top-[105%] left-0 right-0 bg-[#151515] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden">
+                                    {suggestions.map(user => (
+                                        <div key={user.id} onMouseDown={(e) => { e.preventDefault(); handleInvite(null, user.email); }} className="p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer flex items-center gap-3">
+                                            {renderAvatar(user.profile_image, user.username, "w-8 h-8")}
+                                            <div>
+                                                <p className="font-bold text-[11px] text-gray-200">{user.username}</p>
+                                                <p className="text-[8px] font-black uppercase text-gray-600">{user.email}</p>
+                                            </div>
                                         </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-3 custom-scrollbar max-h-[40vh] overflow-y-auto pr-2">
+                            {participants.map((user) => (
+                                <div key={user.id} className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
+                                    {renderAvatar(user.profile_image, user.username)}
+                                    <div>
+                                        <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">{user.username}</span>
+                                        <span className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">{user.id === event.owner_id || user.id === event.creator_id ? "Organizator" : "Uczestnik"}</span>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="space-y-3 custom-scrollbar max-h-[60vh] overflow-y-auto pr-2">
-                        {participants.map((user) => (
-                            <div key={user.id} className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
-                                {renderAvatar(user.profile_image, user.username)}
-                                <div>
-                                    <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">{user.username}</span>
-                                    <span className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">{user.id === event.owner_id ? "Organizator" : "Uczestnik"}</span>
-                                </div>
-                            </div>
-                        ))}
+                    {/* KARTA WBUDOWANEJ MAPY - Wyszta wysokość 500px */}
+                    <div className="bg-[#0f0f0f] rounded-[3rem] p-8 border border-white/5 shadow-2xl flex flex-col h-[500px] relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
+                            <span className="text-[80px] font-black italic uppercase leading-none">MAPA</span>
+                        </div>
+                        <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px] mb-6 relative z-10">Lokalizacje</h3>
+                        <div className="flex-1 w-full rounded-2xl overflow-hidden border border-white/10 relative z-10 shadow-inner">
+                            <EventMapComponent eventId={id}/>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* --- MODALE --- */}
 
-            {/* MODAL MAPY */}
+            {/* MODAL MAPY (Pełny ekran z przycisku na górze) */}
             {isMapOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setIsMapOpen(false)}></div>
                     <div className="relative w-full max-w-6xl h-full max-h-[85vh] bg-[#0f0f0f] border border-white/10 rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col">
                         <div className="p-6 bg-black border-b border-white/5 flex justify-between items-center">
-                            <h3 className="font-black uppercase text-xs tracking-[0.3em] text-green-500 italic">Mapa Wydarzenia</h3>
+                            <h3 className="font-black uppercase text-xs tracking-[0.3em] text-green-500 italic">Pełna Mapa Wydarzenia</h3>
                             <button onClick={() => setIsMapOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full text-gray-500 hover:text-white transition-all">✕</button>
                         </div>
                         <div className="flex-1 relative">
@@ -458,19 +527,20 @@ export default function EventDetails() {
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                         />
-                        <button type="submit" className="bg-green-600 hover:bg-green-500 w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-green-900/30 transition-all active:scale-90">🚀</button>
+                        <button type="submit" className="bg-green-600 hover:bg-green-500 w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-green-900/30 transition-all active:scale-90"><Send size={20} /></button>
                     </form>
                 </div>
             )}
 
-            {/* CYBERPUNK CSS DLA KALENDARZA REACT-DATEPICKER */}
+            {/* CYBERPUNK CSS */}
             <style dangerouslySetInnerHTML={{
                 __html: `
                 .leaflet-popup-content-wrapper { border-radius: 1.5rem; padding: 5px; }
-                .leaflet-container { font-family: inherit; background: #050505 !important; }
+                .leaflet-container { font-family: inherit; background: #050505 !important; height: 100% !important; width: 100% !important; z-index: 1; }
                 .leaflet-tile-container { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
                 
                 .react-datepicker-wrapper { width: 100%; display: block; }
+                .react-datepicker-popper { z-index: 9999 !important; }
                 .react-datepicker { background-color: #0f0f0f !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 1rem !important; color: white !important; font-family: inherit !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
                 .react-datepicker__header { background-color: #050505 !important; border-bottom: 1px solid rgba(255,255,255,0.05) !important; border-top-left-radius: 1rem !important; border-top-right-radius: 1rem !important; padding-top: 15px; }
                 .react-datepicker__current-month, .react-datepicker-time__header, .react-datepicker__day-name { color: #fff !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 0.1em; font-size: 0.7rem; }
