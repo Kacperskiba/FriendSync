@@ -5,25 +5,33 @@ import { API_BASE_URL } from '../services/api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Komponent do automatycznego centrowania mapy
-function ChangeView({ center }) {
-    const map = useMap();
-    if (center) {
-        map.setView(center, 15);
-    }
-    return null;
-}
-
-// Ikony
+// Importy oryginalnych zasobów Leafleta
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
+function ChangeView({ center }) {
+    const map = useMap();
+    useEffect(() => {
+        if (center) map.setView(center, 15);
+    }, [center, map]);
+    return null;
+}
+
+// Funkcja tworząca skalowaną ikonę (spójna z Twoim dashboardem)
+const getScaledIcon = (votes) => {
+    const baseWidth = 25;
+    const baseHeight = 41;
+    const factor = Math.min(baseWidth + (votes * 4), 60) / baseWidth;
+
+    return L.icon({
+        iconUrl: markerIcon,
+        shadowUrl: markerShadow,
+        iconSize: [baseWidth * factor, baseHeight * factor],
+        iconAnchor: [(baseWidth * factor) / 2, baseHeight * factor],
+        popupAnchor: [1, -baseHeight * factor],
+        shadowSize: [baseHeight * factor, baseHeight * factor]
+    });
+};
 
 export default function EventMapComponent({ eventId }) {
     const [locations, setLocations] = useState([]);
@@ -38,8 +46,10 @@ export default function EventMapComponent({ eventId }) {
             const res = await axios.get(`${API_BASE_URL}/api/events/${eventId}/locations`);
             setLocations(res.data);
 
+            // Centrujemy na ostatnio dodanej lokalizacji, jeśli istnieją
             if (res.data.length > 0) {
-                setMapCenter([res.data[0].latitude, res.data[0].longitude]);
+                const latest = res.data[res.data.length - 1];
+                setMapCenter([latest.latitude, latest.longitude]);
             }
         } catch (err) {
             console.error("Błąd pobierania", err);
@@ -50,7 +60,7 @@ export default function EventMapComponent({ eventId }) {
 
     const handleSearch = async (e) => {
         e.preventDefault();
-        if (locations.length >= 1) return;
+        // USUNIĘTO: if (locations.length >= 1) return; -> Teraz pozwalamy na wiele
 
         setLoading(true);
         try {
@@ -59,63 +69,56 @@ export default function EventMapComponent({ eventId }) {
                 { headers: { Authorization: `Bearer ${token}` }}
             );
             setSearchQuery("");
-            fetchLocations();
+            fetchLocations(); // Odświeżamy listę, aby pokazać nowy marker
         } catch (err) {
-            alert("Nie znaleziono adresu");
+            alert("Nie znaleziono adresu lub wystąpił błąd");
         } finally { setLoading(false); }
     };
 
-    // Funkcja głosowania
     const handleVote = async (locId, val) => {
-    const token = localStorage.getItem('token');
-    try {
-        // Logika: wysyłamy po prostu wartość głosu (1 lub -1)
-        // Jeśli backend odejmuje wartość zamiast ustawiać stan,
-        // upewnij się, że nie wysyłasz "val" wielokrotnie.
-        await axios.post(`${API_BASE_URL}/api/locations/${locId}/votes`,
-            { vote_value: val },
-            { headers: { Authorization: `Bearer ${token}` }}
-        );
-
-        // Po udanym głosowaniu odświeżamy dane z serwera,
-        // aby mieć pewność, że wyświetlamy stan z bazy danych
-        fetchLocations();
-    } catch (err) {
-        console.error("Błąd głosowania:", err);
-        alert("Nie udało się oddać głosu. Możliwe, że już zagłosowałeś?");
-    }
-};
+        try {
+            await axios.post(`${API_BASE_URL}/api/locations/${locId}/votes`,
+                { vote_value: val },
+                { headers: { Authorization: `Bearer ${token}` }}
+            );
+            fetchLocations();
+        } catch (err) {
+            console.error("Błąd głosowania:", err);
+            alert("Nie udało się oddać głosu.");
+        }
+    };
 
     return (
-        <div className="h-full w-full relative">
+        <div className="h-full w-full relative bg-black">
 
-            {/* Search / Info Bar */}
+            {/* Search Bar - Zawsze widoczny, aby móc dodawać kolejne propozycje */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-md">
-                {locations.length === 0 ? (
-                    <form onSubmit={handleSearch} className="flex gap-2 bg-[#0f0f0f]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
+                <form onSubmit={handleSearch} className="flex flex-col gap-2">
+                    <div className="flex gap-2 bg-[#0f0f0f]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
                         <input
                             className="flex-1 bg-black border border-white/5 rounded-xl px-4 py-2 text-xs outline-none focus:border-green-500/50 text-white font-bold"
-                            placeholder="Ustaw miejsce spotkania..."
+                            placeholder="Zaproponuj kolejne miejsce..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
-                        <button type="submit" disabled={loading} className="bg-green-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all hover:bg-green-500">
-                            {loading ? "..." : "Ustaw"}
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="bg-green-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all hover:bg-green-500 disabled:opacity-50"
+                        >
+                            {loading ? "..." : "Dodaj"}
                         </button>
-                    </form>
-                ) : (
-                    <div className="bg-[#0f0f0f]/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl text-center shadow-2xl flex items-center justify-between px-6">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-300">
-                                Cel ustalony
+                    </div>
+
+                    {/* Mały licznik propozycji dla lepszego UX */}
+                    {locations.length > 0 && (
+                        <div className="self-center bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
+                            <p className="text-[8px] font-black uppercase tracking-widest text-gray-400">
+                                Propozycje: <span className="text-green-500">{locations.length}</span>
                             </p>
                         </div>
-                        <p className="text-[10px] font-bold text-gray-500 italic">
-                            {locations[0].name}
-                        </p>
-                    </div>
-                )}
+                    )}
+                </form>
             </div>
 
             <MapContainer center={mapCenter} zoom={13} className="h-full w-full z-0">
@@ -123,7 +126,11 @@ export default function EventMapComponent({ eventId }) {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
                 {locations.map(loc => (
-                    <Marker key={loc.id} position={[loc.latitude, loc.longitude]} icon={DefaultIcon}>
+                    <Marker
+                        key={loc.id}
+                        position={[loc.latitude, loc.longitude]}
+                        icon={getScaledIcon(loc.votes_count || 0)}
+                    >
                         <Popup>
                             <div className="p-2 min-w-[180px] font-sans">
                                 <h3 className="font-black uppercase italic tracking-tighter text-lg leading-tight mb-1 text-black">
@@ -155,6 +162,11 @@ export default function EventMapComponent({ eventId }) {
                     </Marker>
                 ))}
             </MapContainer>
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                .leaflet-container { background: #050505 !important; }
+                .leaflet-popup-content-wrapper { border-radius: 1.5rem; }
+            `}} />
         </div>
     );
 }
