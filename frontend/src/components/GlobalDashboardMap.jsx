@@ -6,10 +6,6 @@ import { API_BASE_URL } from '../services/api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Importy oryginalnych zasobów Leafleta
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
 function ChangeView({ center }) {
     const map = useMap();
     useEffect(() => {
@@ -18,20 +14,37 @@ function ChangeView({ center }) {
     return null;
 }
 
-// Funkcja tworząca skalowaną, oryginalną ikonę
-const getScaledIcon = (votes) => {
+// Funkcja generująca kolor na podstawie ID wydarzenia (Hashed Color)
+const getEventColor = (eventId) => {
+    const colors = [
+        '#10b981', '#3b82f6', '#f59e0b', '#ef4444',
+        '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+    ];
+    return colors[eventId % colors.length];
+};
+
+// Funkcja tworząca dynamiczną ikonę SVG
+const createDynamicIcon = (votes, eventId) => {
+    const color = getEventColor(eventId);
     const baseWidth = 25;
     const baseHeight = 41;
-    // Skalowanie: +4px szerokości za każdy głos, max 60px szerokości
     const factor = Math.min(baseWidth + (votes * 4), 60) / baseWidth;
 
-    return L.icon({
-        iconUrl: markerIcon,
-        shadowUrl: markerShadow,
-        iconSize: [baseWidth * factor, baseHeight * factor],
-        iconAnchor: [(baseWidth * factor) / 2, baseHeight * factor], // Dół pinezki
-        popupAnchor: [1, -baseHeight * factor],
-        shadowSize: [baseHeight * factor, baseHeight * factor] // Cień też rośnie
+    const w = baseWidth * factor;
+    const h = baseHeight * factor;
+
+    const svgTemplate = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="1" width="${w}" height="${h}">
+            <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+        </svg>
+    `;
+
+    return L.divIcon({
+        className: "custom-event-icon",
+        html: svgTemplate,
+        iconSize: [w, h],
+        iconAnchor: [w / 2, h],
+        popupAnchor: [0, -h],
     });
 };
 
@@ -95,8 +108,7 @@ export default function GlobalDashboardMap() {
 
     return (
         <div className="h-full w-full relative bg-black">
-
-            {/* Search Bar - Identyczny jak w mapie eventowej */}
+            {/* Search Bar */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-md">
                 <form onSubmit={handleSearch} className="flex gap-2 bg-[#0f0f0f]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
                     <input
@@ -119,11 +131,17 @@ export default function GlobalDashboardMap() {
                     <Marker
                         key={`${loc.event_id}-${loc.id}`}
                         position={[loc.latitude, loc.longitude]}
-                        icon={getScaledIcon(loc.votes_count || 0)}
+                        icon={createDynamicIcon(loc.votes_count || 0, loc.event_id)}
                     >
                         <Popup>
                             <div className="p-2 min-w-[200px] font-sans">
-                                <p className="text-[7px] font-black text-green-600 uppercase mb-1">{loc.event_title}</p>
+                                {/* Kolor tytułu zgodny z kolorem pinezki */}
+                                <p
+                                    className="text-[7px] font-black uppercase mb-1"
+                                    style={{ color: getEventColor(loc.event_id) }}
+                                >
+                                    {loc.event_title}
+                                </p>
                                 <h3 className="font-black uppercase italic tracking-tighter text-lg leading-tight mb-2 text-black">
                                     {loc.name}
                                 </h3>
@@ -149,6 +167,7 @@ export default function GlobalDashboardMap() {
             <style dangerouslySetInnerHTML={{ __html: `
                 .leaflet-container { background: #050505 !important; }
                 .leaflet-popup-content-wrapper { border-radius: 1.5rem; }
+                .custom-event-icon { background: none !important; border: none !important; }
             `}} />
         </div>
     );
