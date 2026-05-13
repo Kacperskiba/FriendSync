@@ -1,5 +1,97 @@
 @import "tailwindcss";
 
+/* --- KOLOR AKCENTU (Settings) --- */
+:root {
+    --accent: #22c55e;
+    --accent-dark: #16a34a;
+    --accent-deep: #14532d;
+    --accent-soft: rgba(34, 197, 94, 0.15);
+}
+html[data-accent="blue"] {
+    --accent: #3b82f6;
+    --accent-dark: #2563eb;
+    --accent-deep: #1e3a8a;
+    --accent-soft: rgba(59, 130, 246, 0.15);
+}
+html[data-accent="purple"] {
+    --accent: #a855f7;
+    --accent-dark: #9333ea;
+    --accent-deep: #581c87;
+    --accent-soft: rgba(168, 85, 247, 0.15);
+}
+html[data-accent="orange"] {
+    --accent: #f97316;
+    --accent-dark: #ea580c;
+    --accent-deep: #7c2d12;
+    --accent-soft: rgba(249, 115, 22, 0.15);
+}
+
+.accent-bg     { background-color: var(--accent); }
+.accent-text   { color: var(--accent); }
+.accent-border { border-color: var(--accent); }
+.accent-soft-bg { background-color: var(--accent-soft); }
+
+/* --- GLOBALNE NADPISANIE KLAS green-* na wybrany akcent --- */
+/* Działa tylko gdy data-accent jest ustawione (czyli niezielony) */
+html[data-accent] .text-green-400             { color: color-mix(in srgb, var(--accent), white 20%) !important; }
+html[data-accent] .text-green-500             { color: var(--accent) !important; }
+html[data-accent] .text-green-500\/50         { color: color-mix(in srgb, var(--accent) 50%, transparent) !important; }
+html[data-accent] .hover\:text-green-400:hover { color: color-mix(in srgb, var(--accent), white 20%) !important; }
+html[data-accent] .hover\:text-green-500:hover { color: var(--accent) !important; }
+
+html[data-accent] .bg-green-500               { background-color: var(--accent) !important; }
+html[data-accent] .bg-green-500\/10           { background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
+html[data-accent] .bg-green-500\/5            { background-color: color-mix(in srgb, var(--accent) 5%, transparent) !important; }
+html[data-accent] .bg-green-600               { background-color: var(--accent-dark) !important; }
+html[data-accent] .bg-green-600\/10           { background-color: color-mix(in srgb, var(--accent-dark) 10%, transparent) !important; }
+html[data-accent] .hover\:bg-green-500:hover  { background-color: var(--accent) !important; }
+html[data-accent] .hover\:bg-green-600:hover  { background-color: var(--accent-dark) !important; }
+
+html[data-accent] .border-green-500           { border-color: var(--accent) !important; }
+html[data-accent] .border-green-500\/10       { border-color: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
+html[data-accent] .border-green-500\/20       { border-color: color-mix(in srgb, var(--accent) 20%, transparent) !important; }
+html[data-accent] .border-green-500\/30       { border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+html[data-accent] .border-green-600           { border-color: var(--accent-dark) !important; }
+html[data-accent] .border-green-600\/50       { border-color: color-mix(in srgb, var(--accent-dark) 50%, transparent) !important; }
+html[data-accent] .focus\:border-green-500:focus { border-color: var(--accent) !important; }
+html[data-accent] .focus\:border-green-500\/50:focus { border-color: color-mix(in srgb, var(--accent) 50%, transparent) !important; }
+html[data-accent] .hover\:border-green-500\/30:hover { border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+html[data-accent] .hover\:border-green-500\/50:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent) !important; }
+
+html[data-accent] .from-green-500             { --tw-gradient-from: var(--accent) !important; }
+html[data-accent] .from-green-500\/0          { --tw-gradient-from: transparent !important; }
+html[data-accent] .to-green-500               { --tw-gradient-to: var(--accent) !important; }
+html[data-accent] .to-green-500\/5            { --tw-gradient-to: color-mix(in srgb, var(--accent) 5%, transparent) !important; }
+
+html[data-accent] .shadow-green-900           { --tw-shadow-color: var(--accent-deep) !important; }
+html[data-accent] .shadow-green-900\/10       { --tw-shadow-color: color-mix(in srgb, var(--accent-deep) 10%, transparent) !important; }
+html[data-accent] .shadow-green-900\/20       { --tw-shadow-color: color-mix(in srgb, var(--accent-deep) 20%, transparent) !important; }
+html[data-accent] .shadow-green-900\/30       { --tw-shadow-color: color-mix(in srgb, var(--accent-deep) 30%, transparent) !important; }
+html[data-accent] .shadow-green-900\/40       { --tw-shadow-color: color-mix(in srgb, var(--accent-deep) 40%, transparent) !important; }
+
+/* DatePicker (react-datepicker) używa hardcoded zielonych — nadpisujemy */
+html[data-accent] .react-datepicker__day:hover,
+html[data-accent] .react-datepicker__time-list-item:hover {
+    background-color: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+    color: var(--accent) !important;
+}
+html[data-accent] .react-datepicker__day--selected,
+html[data-accent] .react-datepicker__day--keyboard-selected,
+html[data-accent] .react-datepicker__time-list-item--selected {
+    background-color: var(--accent-dark) !important;
+    color: white !important;
+}
+
+/* --- REDUKCJA ANIMACJI --- */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+}
+
 /* --- STYLOWANIE SCROLLBARA (Mroczny styl) --- */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px; /* Wąski i elegancki pasek */
@@ -18,4 +110,8 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #22c55e; /* Subtelny, neonowy zielony przy najechaniu myszką! */
+}
+
+html[data-accent] .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }

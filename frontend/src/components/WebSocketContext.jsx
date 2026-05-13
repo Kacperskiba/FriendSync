@@ -1,7 +1,36 @@
 import React, { createContext, useContext, useRef, useState, useCallback, useEffect } from 'react';
 import { API_BASE_URL } from '../services/api';
+import { prefStorage } from '../services/preferences';
 
 const WebSocketContext = createContext(null);
+
+const NOTIF_SOUND_TYPES = new Set([
+    'friend_request_new',
+    'friend_request_accepted',
+    'event_invitation_new',
+    'event_invitation_resolved',
+]);
+
+function playDing() {
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(880, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.18);
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start();
+        o.stop(ctx.currentTime + 0.3);
+        setTimeout(() => ctx.close(), 500);
+    } catch {}
+}
 
 export function WebSocketProvider({ children }) {
     const socketRef = useRef(null);
@@ -36,6 +65,9 @@ export function WebSocketProvider({ children }) {
             } catch {
                 console.warn("WS: nieprawidłowy JSON", event.data);
                 return;
+            }
+            if (prefStorage.get('notif_sound') === '1' && NOTIF_SOUND_TYPES.has(msg.type)) {
+                playDing();
             }
             listenersRef.current.forEach(({ type, fn }) => {
                 if (type === '*' || type === msg.type) fn(msg);

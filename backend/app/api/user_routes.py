@@ -158,3 +158,76 @@ def read_global_finance_summary(
 ):
     """Sumuje długi i należności użytkownika ze wszystkich eventów."""
     return calculate_global_finance_summary(db, current_user.id)
+
+
+@router.delete("/me", status_code=status.HTTP_200_OK)
+async def delete_my_account(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Trwale usuwa konto użytkownika i wszystkie związane z nim dane."""
+    from app.models.expense import Expense, ExpenseShare
+    from app.models.message import Message
+    from app.models.location import LocationProposal, LocationVote
+    from app.models.event import Event, EventParticipant
+    from app.models.event_invitation import EventInvitation
+    from app.models.notification import Notification
+
+    user_id = current_user.id
+
+    # Powiadom znajomych że profil znika (żeby zniknął z ich list)
+    friendships_for_notify = db.query(Friendship).filter(
+        ((Friendship.user_id == user_id) | (Friendship.friend_id == user_id)),
+        Friendship.status == "accepted"
+    ).all()
+    friend_ids = [f.friend_id if f.user_id == user_id else f.user_id for f in friendships_for_notify]
+
+    # 1. Czyszczenie głosów i propozycji lokalizacji
+    db.query(LocationVote).filter(LocationVote.user_id == user_id).delete()
+    loc_ids = [l.id for l in db.query(LocationProposal.id).filter(LocationProposal.creator_id == user_id).all()]
+    if loc_ids:
+        db.query(LocationVote).filter(LocationVote.location_id.in_(loc_ids)).delete(synchronize_session=False)
+        db.query(LocationProposal).filter(LocationProposal.id.in_(loc_ids)).delete(synchronize_session=False)
+
+    # 2. Wiadomości
+    db.query(Message).filter(Message.author_id == user_id).delete()
+
+    # 3. Wydatki
+    db.query(ExpenseShare).filter(ExpenseShare.user_id == user_id).delete()
+    exp_ids = [e.id for e in db.query(Expense.id).filter(Expense.payer_id == user_id).all()]
+    if exp_ids:
+        db.query(ExpenseShare).filter(ExpenseShare.expense_id.in_(exp_ids)).delete(synchronize_session=False)
+        db.query(Expense).filter(Expense.id.in_(exp_ids)).delete(synchronize_session=False)
+
+    # 4. Zaproszenia i znajomości
+    db.query(EventInvitation).filter(
+        (EventInvitation.user_id == user_id) | (EventInvitation.inviter_id == user_id)
+    ).delete(synchronize_session=False)
+    db.query(Friendship).filter(
+        (Friendship.user_id == user_id) | (Friendship.friend_id == user_id)
+    ).delete(synchronize_session=False)
+    db.query(Notification).filter(Notification.user_id == user_id).delete()
+
+    # 5. Uczestnictwo w eventach
+    db.query(EventParticipant).filter(EventParticipant.user_id == user_id).delete()
+
+    # 6. Eventy które user stworzył: przekaż innym uczestnikom lub usuń
+    my_events = db.query(Event).filter(Event.creator_id == user_id).all()
+    for ev in my_events:
+        next_participant = db.query(EventParticipant).filter(EventParticipant.event_id == ev.id).first()
+        if next_participant:
+            ev.creator_id = next_participant.user_id
+        else:
+            db.delete(ev)
+
+    db.commit()
+
+    # 7. Usuń usera
+    db.delete(current_user)
+    db.commit()
+
+    # 8. Powiadom znajomych żeby ich frontend odświeżył listę
+    for fid in friend_ids:
+        await manager.send_to_user(fid, {"type": "friend_removed", "user_id": user_id})
+
+    return {"message": "Konto zostało trwale usunięte."}

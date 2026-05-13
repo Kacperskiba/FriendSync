@@ -408,7 +408,7 @@ export default function EventDetails() {
                                 <div className="relative border-l-2 border-white/10 ml-4 space-y-8 pb-4 mt-2">
                                     {sortedSubEvents.map((subEvent, index) => (
                                         <div key={subEvent.id} className="relative pl-8 group animate-in fade-in slide-in-from-left-4">
-                                            <div className="absolute -left-[9px] top-1 w-4 h-4 bg-black border-2 border-green-500 rounded-full group-hover:scale-125 group-hover:shadow-[0_0_15px_rgba(34,197,94,0.6)] transition-all"></div>
+                                            <div className="absolute -left-[9px] top-1 w-4 h-4 bg-black border-2 border-green-500 rounded-full group-hover:scale-125 group-hover:shadow-lg group-hover:shadow-green-900/40 transition-all"></div>
 
                                             <div className="bg-black/50 border border-white/5 rounded-2xl p-5 hover:bg-white/5 transition-colors relative">
                                                 <div className="absolute right-4 top-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">

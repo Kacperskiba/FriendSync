@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../services/api';
+import { notifyUserChanged } from '../services/preferences';
 
 const API_URL = `${API_BASE_URL}/api/users`;
 
@@ -46,6 +47,7 @@ export default function AuthPage() {
         params.append('password', formData.password);
         const res = await axios.post(`${API_URL}/login`, params);
         localStorage.setItem('token', res.data.access_token);
+        notifyUserChanged();
         navigate('/dashboard');
       } else {
         // REJESTRACJA JAKO FORMDATA

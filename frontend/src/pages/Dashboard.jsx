@@ -3,6 +3,8 @@ import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import EventMapComponent from '../components/GlobalDashboardMap.jsx';
 import { useWebSocket } from '../components/WebSocketContext';
+import { useCurrency } from '../components/CurrencyContext';
+import { notifyUserChanged } from '../services/preferences';
 import {
     Map, Bell, ChevronDown, Settings, User, LogOut, Pencil, Trash2,
     CalendarDays, Calendar, ArrowRight, X, Check, Plus, UserPlus,
@@ -55,6 +57,7 @@ export default function Dashboard() {
 
     // Globalny WS z kontekstu – nie zamyka się przy zmianie strony
     const { connect, disconnect, addListener } = useWebSocket();
+    const { format: formatMoney } = useCurrency();
 
     const refreshFriends = async (token) => {
         try {
@@ -112,6 +115,7 @@ export default function Dashboard() {
                 setError("Nie udało się załadować danych. Możliwe, że sesja wygasła.");
                 if (err.response?.status === 401) {
                     localStorage.removeItem('token');
+                    notifyUserChanged();
                     navigate('/');
                 }
             } finally {
@@ -260,6 +264,7 @@ export default function Dashboard() {
         setTimeout(() => {
             localStorage.removeItem('token');
             localStorage.removeItem('username');
+            notifyUserChanged();
             navigate('/');
         }, 300);
     };
@@ -488,7 +493,7 @@ export default function Dashboard() {
                         >
                             <TrendingDown size={14} className="text-red-500" />
                             <span className="text-[16px] font-black italic text-red-500 tracking-tight">
-                                {financeSummary.total_to_pay.toFixed(2)}
+                                {formatMoney(financeSummary.total_to_pay)}
                             </span>
                         </div>
                         <div
@@ -497,7 +502,7 @@ export default function Dashboard() {
                         >
                             <TrendingUp size={14} className="text-green-500" />
                             <span className="text-[16px] font-black italic text-green-500 tracking-tight">
-                                {financeSummary.total_to_receive.toFixed(2)}
+                                {formatMoney(financeSummary.total_to_receive)}
                             </span>
                         </div>
                     </div>
@@ -525,7 +530,7 @@ export default function Dashboard() {
                             setNewEventData({title: '', description: '', event_date: null});
                             setIsModalOpen(true);
                         }}
-                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-6 py-4 md:px-8 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-[0_10px_30px_rgba(34,197,94,0.2)] text-center flex items-center justify-center gap-2"
+                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-6 py-4 md:px-8 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-xl shadow-green-900/20 text-center flex items-center justify-center gap-2"
                     >
                         <Plus size={14} /> Nowe wydarzenie
                     </button>
@@ -971,7 +976,7 @@ export default function Dashboard() {
                             ) : (
                                 notifications.map(notif => (
                                     <div key={notif.id}
-                                         className={`p-4 rounded-xl md:rounded-2xl border transition-all cursor-default ${notif.is_read ? 'bg-black border-transparent opacity-50' : 'bg-[#151515] border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.05)]'}`}>
+                                         className={`p-4 rounded-xl md:rounded-2xl border transition-all cursor-default ${notif.is_read ? 'bg-black border-transparent opacity-50' : 'bg-[#151515] border-green-500/30 shadow-lg shadow-green-900/10'}`}>
                                         <p className="text-[10px] md:text-xs text-gray-300 font-medium mb-3">{notif.message}</p>
                                         <div className="flex justify-between items-center">
                                             <span

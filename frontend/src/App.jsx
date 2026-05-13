@@ -1,21 +1,35 @@
 import {Routes, Route} from 'react-router-dom';
+import { useEffect } from 'react';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import EventDetails from './pages/EventDetails';
 import EventFinance from "./pages/EventFinance.jsx";
 import EditProfilePage from "./components/EditProfilePage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
 import { WebSocketProvider } from './components/WebSocketContext';
+import { CurrencyProvider } from './components/CurrencyContext';
+import { applyAppearancePrefs } from './services/preferences';
 
 export default function App() {
+    useEffect(() => {
+        applyAppearancePrefs();
+        const onChange = () => applyAppearancePrefs();
+        window.addEventListener('user_prefs_changed', onChange);
+        return () => window.removeEventListener('user_prefs_changed', onChange);
+    }, []);
+
     return (
-        <WebSocketProvider>
-            <Routes>
-                <Route path="/" element={<AuthPage/>}/>
-                <Route path="/dashboard" element={<Dashboard/>}/>
-                <Route path="/events/:id" element={<EventDetails/>}/>
-                <Route path="/events/:id/finance" element={<EventFinance/>}/>
-                <Route path="/edit-profile" element={<EditProfilePage />} />
-            </Routes>
-        </WebSocketProvider>
+        <CurrencyProvider>
+            <WebSocketProvider>
+                <Routes>
+                    <Route path="/" element={<AuthPage/>}/>
+                    <Route path="/dashboard" element={<Dashboard/>}/>
+                    <Route path="/events/:id" element={<EventDetails/>}/>
+                    <Route path="/events/:id/finance" element={<EventFinance/>}/>
+                    <Route path="/edit-profile" element={<EditProfilePage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                </Routes>
+            </WebSocketProvider>
+        </CurrencyProvider>
     );
 }

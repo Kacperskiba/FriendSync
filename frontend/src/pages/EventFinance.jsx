@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import { useWebSocket } from '../components/WebSocketContext';
+import { useCurrency } from '../components/CurrencyContext';
 
 // --- IMPORT IKON LUCIDE ---
 import {
@@ -30,6 +31,7 @@ export default function EventFinance() {
     const headers = { headers: { Authorization: `Bearer ${token}` } };
 
     const { addListener } = useWebSocket();
+    const { format: formatMoney } = useCurrency();
 
     const fetchData = async () => {
         setLoading(true);
@@ -71,7 +73,7 @@ export default function EventFinance() {
     // LOGIKA ROZLICZENIA (ZAPŁACONE)
     const handleSettle = async (toUserId, amount) => {
         const targetUser = getUsername(toUserId);
-        if (!window.confirm(`Czy na pewno chcesz oznaczyć dług wobec ${targetUser} (${amount.toFixed(2)} PLN) jako spłacony?`)) return;
+        if (!window.confirm(`Czy na pewno chcesz oznaczyć dług wobec ${targetUser} (${formatMoney(amount)}) jako spłacony?`)) return;
 
         const payload = {
             amount: amount,
@@ -161,7 +163,7 @@ export default function EventFinance() {
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="bg-green-600 hover:bg-green-500 text-white px-10 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-[0_10px_40px_rgba(34,197,94,0.3)] active:scale-95"
+                        className="bg-green-600 hover:bg-green-500 text-white px-10 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-2xl shadow-green-900/30 active:scale-95"
                     >
                         + Dodaj Wydatek
                     </button>
@@ -183,8 +185,7 @@ export default function EventFinance() {
                                             <p className="font-black text-2xl tracking-tighter text-gray-200 italic uppercase">{getUsername(s.to_user_id)}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-3xl font-black text-red-500 tracking-tighter">-{s.amount.toFixed(2)}</p>
-                                            <p className="text-[8px] text-gray-700 font-black uppercase tracking-widest">PLN</p>
+                                            <p className="text-3xl font-black text-red-500 tracking-tighter">-{formatMoney(s.amount)}</p>
                                         </div>
                                     </div>
                                     <button
@@ -216,8 +217,7 @@ export default function EventFinance() {
                                         <p className="font-black text-2xl tracking-tighter text-gray-200 italic uppercase">{getUsername(s.from_user_id)}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-3xl font-black text-green-500 tracking-tighter">+{s.amount.toFixed(2)}</p>
-                                        <p className="text-[8px] text-gray-700 font-black uppercase tracking-widest">PLN</p>
+                                        <p className="text-3xl font-black text-green-500 tracking-tighter">+{formatMoney(s.amount)}</p>
                                     </div>
                                 </div>
                             )) : (
@@ -254,7 +254,7 @@ export default function EventFinance() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-lg font-black text-white italic tracking-tighter">{exp.amount.toFixed(2)}</p>
+                                        <p className="text-lg font-black text-white italic tracking-tighter">{formatMoney(exp.amount)}</p>
                                         <p className="text-[8px] text-gray-700 font-bold uppercase">{new Date(exp.created_at).toLocaleDateString()}</p>
                                     </div>
                                 </div>
@@ -285,7 +285,7 @@ export default function EventFinance() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-lg font-black text-green-500 italic tracking-tighter">{exp.amount.toFixed(2)}</p>
+                                        <p className="text-lg font-black text-green-500 italic tracking-tighter">{formatMoney(exp.amount)}</p>
                                         <p className="text-[8px] text-gray-700 font-bold uppercase">{new Date(exp.created_at).toLocaleDateString()}</p>
                                     </div>
                                 </div>
