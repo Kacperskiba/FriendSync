@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import timedelta
 
@@ -28,25 +29,21 @@ async def register_user(
         email: EmailStr = Form(...),
         username: str = Form(...),
         password: str = Form(...),
-        profile_image: UploadFile = File(None),  # Zdjęcie opcjonalne
+        profile_image: UploadFile = File(None),
         db: Session = Depends(get_db)
 ):
-    # Sprawdzanie czy użytkownik istnieje (jak wcześniej)
     if get_user_by_email(db, email):
         raise HTTPException(status_code=400, detail="Email zajęty")
-
     if get_user_by_username(db, username):
         raise HTTPException(status_code=400, detail="Nazwa użytkownika zajęta")
 
     file_path = None
     if profile_image:
-        # Tworzymy folder jeśli nie istnieje
         os.makedirs("static/avatars", exist_ok=True)
         file_path = f"static/avatars/{username}_{profile_image.filename}"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(profile_image.file, buffer)
 
-    # Tworzenie użytkownika
     hashed_password = get_password_hash(password)
     new_user = User(
         username=username,
@@ -75,27 +72,33 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
-
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/me", response_model=UserResponse)
-def read_users_me(current_user: User = Depends(get_current_user)):
+def read_users_me(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    # USUNIĘTO: current_user.last_active = func.now()
+    # To resetowało zegar przy każdym wywołaniu i blokowało przejście w offline.
+    # Status online jest teraz wyłącznie określany przez WebSocket.
     return current_user
 
 
 @router.patch("/me", response_model=UserResponse)
 async def update_user_profile(
-    username: Optional[str] = Form(None),
-    email: Optional[EmailStr] = Form(None),
-    confirm_email: Optional[EmailStr] = Form(None),  # Dodane
-    password: Optional[str] = Form(None),
-    confirm_password: Optional[str] = Form(None),  # Dodane
-    profile_image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        username: Optional[str] = Form(None),
+        email: Optional[EmailStr] = Form(None),
+        confirm_email: Optional[EmailStr] = Form(None),
+        password: Optional[str] = Form(None),
+        confirm_password: Optional[str] = Form(None),
+        profile_image: Optional[UploadFile] = File(None),
+        bio: Optional[str] = Form(None),
+        tags: Optional[str] = Form(None),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
-    # 1. Walidacja Emaila
     if email:
         if email != confirm_email:
             raise HTTPException(status_code=400, detail="Podane adresy email nie są identyczne")
@@ -104,25 +107,27 @@ async def update_user_profile(
                 raise HTTPException(status_code=400, detail="Ten email jest już zajęty")
             current_user.email = email
 
-    # 2. Walidacja Hasła
     if password:
         if password != confirm_password:
             raise HTTPException(status_code=400, detail="Hasła nie są identyczne")
         current_user.password_hash = get_password_hash(password)
 
-    # 3. Username (bez zmian)
     if username and username != current_user.username:
         if get_user_by_username(db, username):
             raise HTTPException(status_code=400, detail="Nazwa użytkownika zajęta")
         current_user.username = username
 
-    # 4. Zdjęcie (bez zmian)
     if profile_image:
         os.makedirs("static/avatars", exist_ok=True)
         file_path = f"static/avatars/{current_user.id}_{profile_image.filename}"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(profile_image.file, buffer)
         current_user.profile_image = file_path
+
+    if bio is not None:
+        current_user.bio = bio
+    if tags is not None:
+        current_user.tags = tags
 
     db.add(current_user)
     db.commit()

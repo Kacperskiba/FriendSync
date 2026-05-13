@@ -3,14 +3,19 @@ import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import EventDetails from './pages/EventDetails';
 import EventFinance from "./pages/EventFinance.jsx";
+import EditProfilePage from "./components/EditProfilePage.jsx";
+import { WebSocketProvider } from './components/WebSocketContext';
 
 export default function App() {
     return (
-        <Routes>
-            <Route path="/" element={<AuthPage/>}/>
-            <Route path="/dashboard" element={<Dashboard/>}/>
-            <Route path="/events/:id" element={<EventDetails/>}/>
-            <Route path="/events/:id/finance" element={<EventFinance/>}/>
-        </Routes>
+        <WebSocketProvider>
+            <Routes>
+                <Route path="/" element={<AuthPage/>}/>
+                <Route path="/dashboard" element={<Dashboard/>}/>
+                <Route path="/events/:id" element={<EventDetails/>}/>
+                <Route path="/events/:id/finance" element={<EventFinance/>}/>
+                <Route path="/edit-profile" element={<EditProfilePage />} />
+            </Routes>
+        </WebSocketProvider>
     );
 }

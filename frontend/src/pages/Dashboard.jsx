@@ -2,15 +2,16 @@ import React, {useState, useEffect, useRef} from 'react';
 import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import EventMapComponent from '../components/GlobalDashboardMap.jsx';
+import { useWebSocket } from '../components/WebSocketContext';
 
-// --- NOWE IMPORTY DLA KALENDARZA ---
-import DatePicker, { registerLocale } from "react-datepicker";
+import DatePicker, {registerLocale} from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { pl } from "date-fns/locale";
-registerLocale("pl", pl); // Ustawiamy polski język (dni tygodnia, miesiące)
-// -----------------------------------
+import {pl} from "date-fns/locale";
 
-import { API_BASE_URL } from '../services/api';
+registerLocale("pl", pl);
+
+import {API_BASE_URL} from '../services/api';
+
 const API_URL = `${API_BASE_URL}/api/events`;
 const FRIENDS_API = `${API_BASE_URL}/api/friends`;
 const NOTIF_API = `${API_BASE_URL}/api/notifications`;
@@ -21,48 +22,44 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Stany Modali i Menu (Zaktualizowane o event_date jako null dla kalendarza)
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [newEventData, setNewEventData] = useState({title: '', description: '', event_date: null});
 
-    // Inicjalizacja z localStorage
     const [username, setUsername] = useState(localStorage.getItem('username') || 'Użytkownik');
     const [profileImage, setProfileImage] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
 
-    // Stany: Powiadomienia
     const [notifications, setNotifications] = useState([]);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
 
-    // Stany: Znajomi
-    const [activeFriendTab, setActiveFriendTab] = useState('list'); // 'list' lub 'pending'
+    const [activeFriendTab, setActiveFriendTab] = useState('list');
     const [friends, setFriends] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
 
-    // NOWE STANY: Wyszukiwarka znajomych
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
 
     const [isGlobalMapOpen, setIsGlobalMapOpen] = useState(false);
-
-    // Stany edycji profilu
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editData, setEditData] = useState({
-        username: '',
-        email: '',
-        confirmEmail: '',
-        password: '',
-        confirmPassword: ''
-    });
-    const [editFile, setEditFile] = useState(null);
-    const editFileInputRef = useRef(null);
+    const [selectedFriend, setSelectedFriend] = useState(null);
+    const [editingEvent, setEditingEvent] = useState(null);
 
     const navigate = useNavigate();
     const menuRef = useRef(null);
 
-    // Stan do edycji wydarzenia
-    const [editingEvent, setEditingEvent] = useState(null);
+    // Globalny WS z kontekstu – nie zamyka się przy zmianie strony
+    const { connect, disconnect, addListener } = useWebSocket();
+
+    const refreshFriends = async (token) => {
+        try {
+            const res = await axios.get(FRIENDS_API, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            setFriends(res.data);
+        } catch (err) {
+            console.error("Błąd odświeżania znajomych:", err);
+        }
+    };
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -84,7 +81,7 @@ export default function Dashboard() {
                     headers: {Authorization: `Bearer ${token}`}
                 });
                 setUsername(res.data.username);
-                setProfileImage(res.data.profile_image); // Pobieramy zdjęcie z backendu
+                setProfileImage(res.data.profile_image);
                 setCurrentUserId(res.data.id);
                 localStorage.setItem('username', res.data.username);
             } catch (err) {
@@ -122,7 +119,55 @@ export default function Dashboard() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [navigate]);
 
-    // Automatyczne wyszukiwanie użytkowników przy pisaniu (Debounce)
+    // Gdy znamy userId – nawiąż WS i nasłuchuj wiadomości
+    useEffect(() => {
+        if (!currentUserId) return;
+
+        const token = localStorage.getItem('token');
+
+        // Nawiąż połączenie (ignoruje jeśli już otwarte)
+        connect(currentUserId);
+
+        // Daj WS ~500ms na onopen, potem odśwież znajomych
+        // żeby is_online był już poprawny
+        const timer = setTimeout(() => refreshFriends(token), 500);
+
+        const removeListener = addListener(async (data) => {
+            const token = localStorage.getItem('token');
+
+            if (data.startsWith("status_update:")) {
+                const parts = data.split(":");
+                const userId = parseInt(parts[1]);
+                const isOnline = parts[2] === "online";
+
+                setFriends(prev => prev.map(f =>
+                    f.id === userId ? {...f, is_online: isOnline} : f
+                ));
+                setSelectedFriend(prev =>
+                    prev?.id === userId ? {...prev, is_online: isOnline} : prev
+                );
+            }
+            else if (data === "new_friend_request") {
+                try {
+                    const res = await axios.get(`${FRIENDS_API}/pending`, {
+                        headers: {Authorization: `Bearer ${token}`}
+                    });
+                    setPendingRequests(res.data);
+                } catch (err) {
+                    console.error("Błąd pobierania zaproszeń:", err);
+                }
+            }
+            else if (data === "friend_request_accepted") {
+                await refreshFriends(token);
+            }
+        });
+
+        return () => {
+            clearTimeout(timer);
+            removeListener(); // usuń listener, ale NIE zamykaj WS
+        };
+    }, [currentUserId, connect, addListener]);
+
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (searchQuery.length >= 2) {
@@ -143,61 +188,15 @@ export default function Dashboard() {
         return () => clearTimeout(delayDebounceFn);
     }, [searchQuery]);
 
-    // System powiadomień WebSocket
-    useEffect(() => {
-        let socket;
-
-        if (currentUserId) {
-            const wsUrl = BASE_URL.replace('http', 'ws');
-            socket = new WebSocket(`${wsUrl}/ws/users/${currentUserId}`);
-
-            socket.onopen = () => console.log("Podłączono globalny system powiadomień!");
-
-            socket.onmessage = async (event) => {
-                const token = localStorage.getItem('token');
-
-                if (event.data === "new_friend_request") {
-                    console.log("Masz nowe zaproszenie do znajomych!");
-                    try {
-                        const res = await axios.get(`${FRIENDS_API}/pending`, {
-                            headers: {Authorization: `Bearer ${token}`}
-                        });
-                        setPendingRequests(res.data);
-                    } catch (err) {
-                        console.error("Błąd pobierania nowych zaproszeń:", err);
-                    }
-                }
-                else if (event.data === "friend_request_accepted") {
-                    console.log("Ktoś zaakceptował Twoje zaproszenie!");
-                    try {
-                        const res = await axios.get(FRIENDS_API, {
-                            headers: {Authorization: `Bearer ${token}`}
-                        });
-                        setFriends(res.data);
-                    } catch (err) {
-                        console.error("Błąd pobierania listy znajomych:", err);
-                    }
-                }
-            };
-
-            socket.onerror = (err) => console.error("Błąd globalnego WS:", err);
-        }
-
-        return () => {
-            if (socket) {
-                console.log("Odłączono globalny WS");
-                socket.close();
-            }
-        };
-    }, [currentUserId]);
-
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('username');
-        navigate('/');
+        disconnect(); // zamknij WS → backend ustawi offline
+        setTimeout(() => {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            navigate('/');
+        }, 300);
     };
 
-    // Zaktualizowana funkcja handleCreateEvent (Obsługuje POST i PUT)
     const handleCreateEvent = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem('token');
@@ -210,13 +209,11 @@ export default function Dashboard() {
 
         try {
             if (editingEvent) {
-                // Tryb edycji
                 const response = await axios.put(`${API_URL}/${editingEvent.id}`, payload, {
                     headers: {Authorization: `Bearer ${token}`}
                 });
                 setEvents(events.map(ev => ev.id === editingEvent.id ? response.data : ev));
             } else {
-                // Tryb tworzenia
                 const response = await axios.post(API_URL, payload, {
                     headers: {Authorization: `Bearer ${token}`}
                 });
@@ -237,10 +234,12 @@ export default function Dashboard() {
 
         try {
             await axios.delete(`${API_URL}/${eventId}`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                headers: {Authorization: `Bearer ${localStorage.getItem('token')}`}
             });
             setEvents(events.filter(ev => ev.id !== eventId));
-        } catch (err) { alert("Błąd usuwania"); }
+        } catch (err) {
+            alert("Błąd usuwania");
+        }
     };
 
     const handleSendFriendRequest = async (e, directIdentifier = null) => {
@@ -269,10 +268,7 @@ export default function Dashboard() {
                 headers: {Authorization: `Bearer ${token}`}
             });
             setPendingRequests(prev => prev.filter(req => req.friendship_id !== friendshipId));
-            const acceptedReq = pendingRequests.find(req => req.friendship_id === friendshipId);
-            if (acceptedReq) {
-                setFriends(prev => [...prev, acceptedReq.user]);
-            }
+            await refreshFriends(token);
         } catch (err) {
             alert("Nie udało się zaakceptować.");
         }
@@ -285,69 +281,35 @@ export default function Dashboard() {
                 headers: {Authorization: `Bearer ${token}`}
             });
             setNotifications(prev => prev.map(n => n.id === notifId ? {...n, is_read: true} : n));
-        } catch (err) {
-        }
+        } catch (err) {}
     };
 
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
-    const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10") => {
-        if (imageUrl) {
-            return (
-                <img
-                    src={`${BASE_URL}/${imageUrl}`}
-                    alt={name}
-                    className={`${sizeClasses} rounded-xl object-cover border border-white/10 shadow-lg`}
-                    onError={(e) => {
-                        e.target.src = "";
-                        e.target.classList.add('hidden');
-                    }}
-                />
-            );
-        }
+    const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10", isOnline = false) => {
         return (
-            <div
-                className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white shrink-0`}>
-                {name ? name.substring(0, 1).toUpperCase() : '?'}
+            <div className="relative shrink-0">
+                {imageUrl ? (
+                    <img
+                        src={`${BASE_URL}/${imageUrl}`}
+                        alt={name}
+                        className={`${sizeClasses} rounded-xl object-cover border border-white/10 shadow-lg`}
+                        onError={(e) => {
+                            e.target.src = "";
+                            e.target.classList.add('hidden');
+                        }}
+                    />
+                ) : (
+                    <div
+                        className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center font-black italic shadow-lg text-white`}>
+                        {name ? name.substring(0, 1).toUpperCase() : '?'}
+                    </div>
+                )}
+                <div
+                    className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-[#0f0f0f] shadow-sm transition-colors duration-500 ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}
+                ></div>
             </div>
         );
-    };
-
-    const openEditModal = () => {
-        setEditData({username: username, email: '', confirmEmail: '', password: '', confirmPassword: ''});
-        setIsEditModalOpen(true);
-    };
-
-    const handleUpdateProfile = async (e) => {
-        e.preventDefault();
-        const token = localStorage.getItem('token');
-        const formData = new FormData();
-
-        if (editData.username) formData.append('username', editData.username);
-        if (editData.email) {
-            formData.append('email', editData.email);
-            formData.append('confirm_email', editData.confirmEmail);
-        }
-        if (editData.password) {
-            formData.append('password', editData.password);
-            formData.append('confirm_password', editData.confirmPassword);
-        }
-        if (editFile) formData.append('profile_image', editFile);
-
-        try {
-            const res = await axios.patch(`${BASE_URL}/api/users/me`, formData, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-            setUsername(res.data.username);
-            setProfileImage(res.data.profile_image);
-            setIsEditModalOpen(false);
-            alert("Profil zaktualizowany!");
-        } catch (err) {
-            alert(err.response?.data?.detail || "Błąd aktualizacji");
-        }
     };
 
     const formatEventDate = (dateString) => {
@@ -409,7 +371,7 @@ export default function Dashboard() {
                         <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                                 className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 bg-[#0f0f0f] border border-white/5 p-2 pr-5 rounded-xl md:rounded-2xl hover:border-white/20 transition-all shadow-xl">
                             <div className="flex items-center gap-3">
-                                {renderAvatar(profileImage, username)}
+                                {renderAvatar(profileImage, username, "w-10 h-10", true)}
                                 <span className="text-[10px] font-black uppercase tracking-widest block">
                                 {username}
                             </span>
@@ -433,7 +395,7 @@ export default function Dashboard() {
                                 <button
                                     onClick={() => {
                                         setIsUserMenuOpen(false);
-                                        openEditModal();
+                                        navigate('/edit-profile');
                                     }}
                                     className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3"
                                 >
@@ -453,7 +415,6 @@ export default function Dashboard() {
             <div
                 className="relative z-40 flex-1 flex flex-col xl:flex-row gap-8 lg:gap-10 max-w-[1600px] w-full mx-auto min-h-0">
 
-                {/* LEWA KOLUMNA: WYDARZENIA */}
                 <div className="flex-1 flex flex-col min-w-0 xl:overflow-hidden">
                     <div className="flex-1 xl:overflow-y-auto pr-0 xl:pr-2 pb-6 xl:pb-10 custom-scrollbar">
                         {loading && (
@@ -506,11 +467,13 @@ export default function Dashboard() {
                                                     setIsModalOpen(true);
                                                 }}
                                                 className="hover:text-green-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
-                                            >✏️</button>
+                                            >✏️
+                                            </button>
                                             <button
                                                 onClick={(e) => handleDeleteEvent(e, event.id)}
                                                 className="hover:text-red-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
-                                            >🗑️</button>
+                                            >🗑️
+                                            </button>
                                         </div>
                                         <div className="relative z-10 flex flex-col h-full">
                                             <div className="flex justify-between items-start mb-4">
@@ -560,7 +523,6 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* PRAWA KOLUMNA: SIDEBAR ZNAJOMYCH */}
                 <div className="w-full xl:w-[450px] shrink-0 flex flex-col h-[500px] xl:h-full pb-8 xl:pb-0">
                     <div
                         className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col flex-1 min-h-0">
@@ -632,16 +594,35 @@ export default function Dashboard() {
 
                                     <div className="space-y-3 pb-4">
                                         {friends.length === 0 ? (
-                                            <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Brak
-                                                znajomych na liście</p>
+                                            <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">
+                                                Brak znajomych na liście
+                                            </p>
                                         ) : (
                                             friends.map(friend => (
-                                                <div key={friend.id}
-                                                     className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex items-center gap-4">
-                                                    {renderAvatar(friend.profile_image, friend.username)}
+                                                <div
+                                                    key={friend.id}
+                                                    onClick={() => setSelectedFriend(friend)}
+                                                    className="group bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex items-center gap-4 hover:border-green-500/30 hover:bg-[#0a0a0a] transition-all cursor-pointer"
+                                                >
+                                                    {renderAvatar(friend.profile_image, friend.username, "w-10 h-10", friend.is_online)}
+
                                                     <div className="min-w-0 flex-1">
-                                                        <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{friend.username}</p>
-                                                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600 truncate">{friend.email}</p>
+                                                        <p className="font-bold text-xs md:text-sm text-gray-200 truncate group-hover:text-green-500 transition-colors">
+                                                            {friend.username}
+                                                        </p>
+                                                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600 truncate">
+                                                            {friend.email}
+                                                        </p>
+                                                    </div>
+
+                                                    <div
+                                                        className="text-gray-700 group-hover:text-green-500 transition-colors text-[10px]">
+                                                        {friend.is_online ? (
+                                                            <span
+                                                                className="text-green-500/50 italic font-black uppercase tracking-tighter">Online</span>
+                                                        ) : (
+                                                            "→"
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))
@@ -684,7 +665,6 @@ export default function Dashboard() {
 
             </div>
 
-            {/* MODAL: TWORZENIE/EDYCJA WYDARZENIA Z KALENDARZEM REACT-DATEPICKER */}
             {isModalOpen && (
                 <div
                     className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[200] backdrop-blur-xl">
@@ -711,9 +691,10 @@ export default function Dashboard() {
                                 />
                             </div>
 
-                            {/* NOWE POLE DATEPICKER */}
                             <div>
-                                <label className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Data i godzina startu</label>
+                                <label
+                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Data
+                                    i godzina startu</label>
                                 <div className="relative w-full">
                                     <DatePicker
                                         selected={newEventData.event_date}
@@ -727,7 +708,8 @@ export default function Dashboard() {
                                         placeholderText="Wybierz datę z kalendarza..."
                                         className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 cursor-pointer"
                                     />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs z-10">🗓️</span>
+                                    <span
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs z-10">🗓️</span>
                                 </div>
                             </div>
 
@@ -755,7 +737,6 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* MODAL: POWIADOMIENIA */}
             {isNotifOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-start justify-end p-4 md:p-6 z-[200]">
                     <div
@@ -796,81 +777,55 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* MODAL: EDYCJA PROFILU */}
-            {isEditModalOpen && (
+            {selectedFriend && (
                 <div
-                    className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[210] backdrop-blur-xl">
+                    className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    onClick={() => setSelectedFriend(null)}>
                     <div
-                        className="bg-[#0f0f0f] rounded-[2rem] p-8 w-full max-w-md border border-white/10 shadow-2xl relative">
-                        <button onClick={() => setIsEditModalOpen(false)}
-                                className="absolute top-6 right-6 text-gray-500 hover:text-white">✕
-                        </button>
-                        <h2 className="text-2xl font-black italic uppercase text-center mb-8">Edytuj <span
-                            className="text-green-500">Profil.</span></h2>
+                        className="bg-[#0f0f0f] w-full max-w-md rounded-[2.5rem] border border-white/10 p-8 shadow-2xl animate-in zoom-in duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex flex-col items-center text-center">
+                            {renderAvatar(selectedFriend.profile_image, selectedFriend.username, "w-24 h-24", selectedFriend.is_online)}
 
-                        <form onSubmit={handleUpdateProfile} className="space-y-4">
-                            <div className="flex flex-col items-center mb-6">
-                                <div
-                                    onClick={() => editFileInputRef.current.click()}
-                                    className="w-24 h-24 rounded-3xl overflow-hidden border-2 border-dashed border-white/10 hover:border-green-500 cursor-pointer transition-all"
-                                >
-                                    {editFile ? (
-                                        <img src={URL.createObjectURL(editFile)}
-                                             className="w-full h-full object-cover"/>
-                                    ) : (
-                                        renderAvatar(profileImage, username, "w-full h-full")
-                                    )}
+                            <h3 className="mt-4 text-2xl font-black italic uppercase tracking-tighter">
+                                {selectedFriend.username}
+                            </h3>
+
+                            <p className="text-[10px] font-black uppercase text-green-500 tracking-[0.2em] mb-4">
+                                {selectedFriend.is_online ? "Online" : "Offline"}
+                            </p>
+
+                            {selectedFriend.tags && (
+                                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                                    {selectedFriend.tags.split(',').map((tag, idx) => (
+                                        <span key={idx}
+                                              className="bg-white/5 text-[9px] font-black uppercase px-3 py-1 rounded-full border border-white/10 text-gray-400">
+                                #{tag.trim()}
+                            </span>
+                                    ))}
                                 </div>
-                                <p className="text-[8px] font-black uppercase tracking-widest text-gray-600 mt-2">Kliknij
-                                    by zmienić foto</p>
-                                <input type="file" ref={editFileInputRef} className="hidden"
-                                       onChange={(e) => setEditFile(e.target.files[0])}/>
+                            )}
+
+                            <div className="w-full bg-black/40 rounded-2xl p-4 border border-white/5 mb-6">
+                                <p className="text-[8px] font-black uppercase text-gray-600 tracking-widest mb-2">O
+                                    mnie:</p>
+                                <p className="text-xs text-gray-300 leading-relaxed italic">
+                                    {selectedFriend.bio || "Ten użytkownik jeszcze nie dodał opisu."}
+                                </p>
                             </div>
 
-                            <input
-                                type="text" placeholder="Nazwa użytkownika"
-                                className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm"
-                                value={editData.username}
-                                onChange={(e) => setEditData({...editData, username: e.target.value})}
-                            />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <input
-                                    type="email" placeholder="Nowy email"
-                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
-                                    value={editData.email}
-                                    onChange={(e) => setEditData({...editData, email: e.target.value})}
-                                />
-                                <input
-                                    type="email" placeholder="Powtórz email"
-                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
-                                    value={editData.confirmEmail}
-                                    onChange={(e) => setEditData({...editData, confirmEmail: e.target.value})}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <input
-                                    type="password" placeholder="Nowe hasło"
-                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
-                                    onChange={(e) => setEditData({...editData, password: e.target.value})}
-                                />
-                                <input
-                                    type="password" placeholder="Powtórz hasło"
-                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-3 outline-none focus:border-green-500/50 transition-all font-bold text-xs"
-                                    onChange={(e) => setEditData({...editData, confirmPassword: e.target.value})}
-                                />
-                            </div>
-
-                            <button type="submit"
-                                    className="w-full bg-green-600 text-white font-black uppercase text-[10px] py-5 rounded-2xl hover:bg-green-500 transition-all mt-4">
-                                Zaktualizuj Profil
+                            <button
+                                onClick={() => setSelectedFriend(null)}
+                                className="w-full py-4 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-green-500 transition-all"
+                            >
+                                Zamknij
                             </button>
-                        </form>
+                        </div>
                     </div>
                 </div>
             )}
-            {/* MODAL: MAPA GLOBALNA */}
+
             {isGlobalMapOpen && (
                 <div
                     className="fixed inset-0 bg-black/95 flex items-center justify-center p-4 md:p-10 z-[250] animate-in fade-in duration-300">

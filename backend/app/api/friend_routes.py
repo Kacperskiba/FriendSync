@@ -18,6 +18,22 @@ router = APIRouter(
 )
 
 
+def serialize_friend(user: User) -> FriendUserResponse:
+    """
+    Buduje FriendUserResponse z is_online opartym na aktywnych połączeniach WS.
+    Online = zalogowany i ma otwarty WebSocket. Offline = wylogowany lub zamknięta karta.
+    """
+    return FriendUserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        profile_image=user.profile_image,
+        bio=user.bio,
+        tags=user.tags,
+        is_online=manager.is_user_online(user.id)
+    )
+
+
 @router.post("/request", status_code=status.HTTP_201_CREATED)
 async def add_friend(
         request: FriendRequestCreate,
@@ -25,10 +41,9 @@ async def add_friend(
         current_user: User = Depends(get_current_user)
 ):
     new_request = send_friend_request(db, current_user.id, request.friend_identifier)
-    target_user_id = new_request.friend_id
-
-    await manager.broadcast_to_user(target_user_id, "new_friend_request")
+    await manager.broadcast_to_user(new_request.friend_id, "new_friend_request")
     return new_request
+
 
 @router.post("/{friendship_id}/accept", status_code=status.HTTP_200_OK)
 async def accept_friend(
@@ -37,20 +52,27 @@ async def accept_friend(
         current_user: User = Depends(get_current_user)
 ):
     accepted_request = accept_friend_request(db, friendship_id, current_user.id)
-    sender_id = accepted_request.user_id
-
-    await manager.broadcast_to_user(sender_id, "friend_request_accepted")
+    await manager.broadcast_to_user(accepted_request.user_id, "friend_request_accepted")
     return accepted_request
 
 
 @router.get("", response_model=List[FriendUserResponse])
 def list_friends(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return get_friends(db, current_user.id)
+    friends = get_friends(db, current_user.id)
+    return [serialize_friend(f) for f in friends]
 
 
 @router.get("/pending", response_model=List[PendingRequestResponse])
 def list_pending_requests(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return get_pending_requests(db, current_user.id)
+    pending = get_pending_requests(db, current_user.id)
+    return [
+        PendingRequestResponse(
+            friendship_id=p["friendship_id"],
+            user=serialize_friend(p["user"])
+        )
+        for p in pending
+    ]
+
 
 @router.get("/search-users")
 def search_users(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -72,9 +94,9 @@ def search_users(q: str, db: Session = Depends(get_db), current_user: User = Dep
     ]
 
 
-
 @router.delete("/{friend_id}")
 def remove_friend(friend_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from fastapi import HTTPException as FastHTTPException
     friendship = db.query(Friendship).filter(
         or_(
             (Friendship.user_id == current_user.id) & (Friendship.friend_id == friend_id),
@@ -83,7 +105,7 @@ def remove_friend(friend_id: int, db: Session = Depends(get_db), current_user: U
     ).first()
 
     if not friendship:
-        raise HTTPException(status_code=404, detail="Nie znaleziono znajomości")
+        raise FastHTTPException(status_code=404, detail="Nie znaleziono znajomości")
 
     db.delete(friendship)
     db.commit()
