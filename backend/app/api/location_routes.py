@@ -29,7 +29,7 @@ async def add_location(
     """Dodaje nową pinezkę na mapie (wymaga tokena JWT)"""
     new_location = location_crud.create_location(db, location_in, event_id, current_user.id)
 
-    await manager.broadcast(event_id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return new_location
 
 
@@ -46,7 +46,7 @@ async def  vote(
 
     location = db.query(LocationProposal).filter(LocationProposal.id == location_id).first()
     if location:
-        await manager.broadcast(location.event_id)
+        await manager.broadcast_to_event(location.event_id, {"type": "event_updated", "event_id": location.event_id}, db)
     return result
 
 # --- USUWANIE GŁOSU ---
@@ -64,5 +64,5 @@ async def remove_vote(
         raise HTTPException(status_code=404, detail="Głos nie został znaleziony")
 
     if location:
-        await manager.broadcast(location.event_id)
+        await manager.broadcast_to_event(location.event_id, {"type": "event_updated", "event_id": location.event_id}, db)
     return {"message": "Głos został usunięty"}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
+import { useWebSocket } from './WebSocketContext';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -56,6 +57,7 @@ export default function GlobalDashboardMap() {
     const [mapCenter, setMapCenter] = useState([52.2297, 21.0122]);
 
     const token = localStorage.getItem('token');
+    const { addListener } = useWebSocket();
 
     const fetchAllLocations = async () => {
         try {
@@ -89,6 +91,12 @@ export default function GlobalDashboardMap() {
     };
 
     useEffect(() => { fetchAllLocations(); }, []);
+
+    useEffect(() => {
+        const removeUpd = addListener("event_updated", () => fetchAllLocations());
+        const removeDel = addListener("event_deleted", () => fetchAllLocations());
+        return () => { removeUpd(); removeDel(); };
+    }, [addListener]);
 
     const handleSearch = async (e) => {
         e.preventDefault();

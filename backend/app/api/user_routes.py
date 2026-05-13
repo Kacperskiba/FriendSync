@@ -17,6 +17,8 @@ from pydantic import EmailStr
 import shutil
 import os
 from fastapi import UploadFile, File, Form
+from app.api.websocket import manager
+from app.models.friendship import Friendship
 
 router = APIRouter(
     prefix="/api/users",
@@ -132,4 +134,16 @@ async def update_user_profile(
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
+
+    # Powiadom znajomych że profil się zmienił (avatar, bio, nick, tagi)
+    friendships = db.query(Friendship).filter(
+        ((Friendship.user_id == current_user.id) | (Friendship.friend_id == current_user.id)),
+        Friendship.status == "accepted"
+    ).all()
+    friend_ids = [f.friend_id if f.user_id == current_user.id else f.user_id for f in friendships]
+    await manager.broadcast_to_users(
+        friend_ids,
+        {"type": "profile_updated", "user_id": current_user.id}
+    )
+
     return current_user

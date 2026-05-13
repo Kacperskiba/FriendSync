@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
+import { useWebSocket } from '../components/WebSocketContext';
 
 // --- IMPORT IKON LUCIDE ---
 import {
@@ -28,6 +29,8 @@ export default function EventFinance() {
     const token = localStorage.getItem('token');
     const headers = { headers: { Authorization: `Bearer ${token}` } };
 
+    const { addListener } = useWebSocket();
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -53,32 +56,17 @@ export default function EventFinance() {
     useEffect(() => { if (id) fetchData(); }, [id]);
 
     useEffect(() => {
-        let socket;
-
-        if (id) {
-            const wsUrl = API_BASE_URL.replace('http', 'ws');
-            socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
-
-            socket.onopen = () => console.log("Połączono z systemem finansów na żywo!");
-
-            socket.onmessage = (event) => {
-                if (event.data === "refresh") {
-                    console.log("Ktoś dodał wydatek lub spłacił dług! Odświeżam portfel...");
-                    fetchData(); // Dociąga nowe wydatki i przelicza długi
-                }
-            };
-
-            socket.onerror = (err) => console.error("Błąd WS w portfelu:", err);
-        }
-
-        // Cleanup po wyjściu z zakładki portfela
-        return () => {
-            if (socket) {
-                console.log("Zamknięto połączenie WS portfela");
-                socket.close();
-            }
-        };
-    }, [id]);
+        if (!id) return;
+        const removeUpd = addListener("event_updated", (msg) => {
+            if (msg.event_id !== parseInt(id)) return;
+            fetchData();
+        });
+        const removeDel = addListener("event_deleted", (msg) => {
+            if (msg.event_id !== parseInt(id)) return;
+            navigate('/dashboard');
+        });
+        return () => { removeUpd(); removeDel(); };
+    }, [id, addListener, navigate]);
 
     // LOGIKA ROZLICZENIA (ZAPŁACONE)
     const handleSettle = async (toUserId, amount) => {

@@ -19,7 +19,6 @@ from app.schemas.event import SubEventCreate, SubEventResponse
 from app.crud.event import create_sub_event
 
 from app.schemas.event import EventUpdate, SubEventUpdate
-from app.api.websocket import manager
 
 from app.models.event import Event, EventParticipant
 
@@ -122,7 +121,7 @@ async def invite_friend_to_event(
     # 5. Dodajemy znajomego do wydarzenia
     add_user_to_event(db=db, event_id=event_id, user_id=friend.id)
 
-    await manager.broadcast(event_id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return {"message": f"Użytkownik {friend.username} został dodany do wydarzenia!"}
 
 
@@ -141,7 +140,7 @@ async def send_event_message(
     # create_message powinno zwracać obiekt modelu Message z załadowaną relacją 'author'
     new_msg = create_message(db=db, event_id=event_id, user_id=current_user.id, message=message)
 
-    await manager.broadcast(event_id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return new_msg
 
 
@@ -185,7 +184,7 @@ async def add_event_expense(
 
     new_expense = create_expense(db=db, event_id=event_id, payer_id=current_user.id, expense_data=expense)
 
-    await manager.broadcast(event_id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return new_expense
 
 
@@ -222,8 +221,10 @@ def get_event_finance_summary(
     return calculate_finance_summary(db=db, event_id=event_id)
 
 @router.post("/{event_id}/sub-events", response_model=SubEventResponse)
-def add_sub_event(event_id: int, sub_event: SubEventCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return create_sub_event(db=db, event_id=event_id, sub_event=sub_event)
+async def add_sub_event(event_id: int, sub_event: SubEventCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_sub = create_sub_event(db=db, event_id=event_id, sub_event=sub_event)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
+    return new_sub
 
 
 # Edycja wydarzenia
@@ -235,7 +236,7 @@ async def edit_event(event_id: int, event_update: EventUpdate, db: Session = Dep
         raise HTTPException(status_code=403, detail="Brak uprawnień do edycji")
 
     updated = update_event(db, event_id, event_update)
-    await manager.broadcast(event_id)  # Powiadom innych
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return updated
 
 
@@ -246,8 +247,17 @@ async def remove_event(event_id: int, db: Session = Depends(get_db), current_use
     if not db_event or db_event.creator_id != current_user.id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
 
+    # Najpierw zbierz user_id uczestników (po usunięciu event_participants już nie będzie)
+    participant_ids = [p.user_id for p in db.query(EventParticipant.user_id).filter(
+        EventParticipant.event_id == event_id
+    ).all()]
+
     delete_event(db, event_id)
-    # Tutaj też możemy dać await manager.broadcast(event_id), żeby wyrzucić ludzi z usuniętego wydarzenia
+
+    await manager.broadcast_to_users(
+        participant_ids,
+        {"type": "event_deleted", "event_id": event_id}
+    )
     return {"message": "Wydarzenie usunięte"}
 
 # Edycja SubEventu
@@ -255,7 +265,7 @@ async def remove_event(event_id: int, db: Session = Depends(get_db), current_use
 async def edit_sub_event(sub_event_id: int, sub_update: SubEventUpdate, db: Session = Depends(get_db)):
     updated = update_sub_event(db, sub_event_id, sub_update)
     if updated:
-        await manager.broadcast(updated.event_id)
+        await manager.broadcast_to_event(updated.event_id, {"type": "event_updated", "event_id": updated.event_id}, db)
     return updated
 
 
@@ -266,7 +276,7 @@ async def remove_sub_event(sub_event_id: int, db: Session = Depends(get_db)):
     if db_sub:
         event_id = db_sub.event_id
         delete_sub_event(db, sub_event_id)
-        await manager.broadcast(event_id)
+        await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return {"message": "Punkt usunięty"}
 
 
@@ -307,7 +317,9 @@ async def remove_participant(event_id: int, user_id: int, db: Session = Depends(
                 db.delete(db_event)
                 db.commit()
 
-        await manager.broadcast(event_id)
+        await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
+        # Powiadom usuniętego usera, żeby zaktualizował swój dashboard
+        await manager.send_to_user(user_id, {"type": "event_updated", "event_id": event_id})
 
     return {"message": "Uczestnik usunięty z wydarzenia"}
 
@@ -334,5 +346,5 @@ async def transfer_ownership(event_id: int, new_owner_id: int, db: Session = Dep
         db_event.owner_id = new_owner_id
 
     db.commit()
-    await manager.broadcast(event_id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return {"message": "Uprawnienia przekazane pomyślnie"}

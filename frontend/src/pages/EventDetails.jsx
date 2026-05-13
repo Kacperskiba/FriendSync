@@ -2,6 +2,7 @@ import React, {useState, useEffect, useRef} from 'react';
 import {useParams, useNavigate} from 'react-router-dom';
 import axios from 'axios';
 import EventMapComponent from '../components/EventMapComponent';
+import { useWebSocket } from '../components/WebSocketContext';
 
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -41,6 +42,8 @@ export default function EventDetails() {
 
     const [isEditingEventInfo, setIsEditingEventInfo] = useState(false);
     const [editEventData, setEditEventData] = useState({ title: '', description: '', event_date: null });
+
+    const { addListener } = useWebSocket();
 
     const fetchEventData = async () => {
         const token = localStorage.getItem('token');
@@ -128,23 +131,18 @@ export default function EventDetails() {
     useEffect(() => { if (isChatOpen) fetchMessages(); }, [isChatOpen]);
 
     useEffect(() => {
-        const wsUrl = BASE_URL.replace('http', 'ws');
-        const socket = new WebSocket(`${wsUrl}/ws/events/${id}`);
-
-        socket.onopen = () => console.log("Połączono z WS (Czat, Ekipa i Harmonogram)");
-
-        socket.onmessage = (eventMsg) => {
-            if (eventMsg.data === "refresh") {
-                fetchEventData();
-                fetchParticipants();
-                if (isChatOpen) fetchMessages();
-            }
-        };
-
-        socket.onerror = (err) => console.error("Błąd WebSocket:", err);
-
-        return () => socket.close();
-    }, [id, isChatOpen]);
+        const removeUpd = addListener("event_updated", (msg) => {
+            if (msg.event_id !== parseInt(id)) return;
+            fetchEventData();
+            fetchParticipants();
+            if (isChatOpen) fetchMessages();
+        });
+        const removeDel = addListener("event_deleted", (msg) => {
+            if (msg.event_id !== parseInt(id)) return;
+            navigate('/dashboard');
+        });
+        return () => { removeUpd(); removeDel(); };
+    }, [id, isChatOpen, addListener, navigate]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({behavior: "smooth"}); }, [messages]);
 

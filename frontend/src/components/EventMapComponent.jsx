@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
+import { useWebSocket } from './WebSocketContext';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -40,6 +41,7 @@ export default function EventMapComponent({ eventId }) {
     const [mapCenter, setMapCenter] = useState([52.2297, 21.0122]);
 
     const token = localStorage.getItem('token');
+    const { addListener } = useWebSocket();
 
     const fetchLocations = async () => {
         try {
@@ -57,6 +59,15 @@ export default function EventMapComponent({ eventId }) {
     };
 
     useEffect(() => { if(eventId) fetchLocations(); }, [eventId]);
+
+    useEffect(() => {
+        if (!eventId) return;
+        const remove = addListener("event_updated", (msg) => {
+            if (msg.event_id !== parseInt(eventId)) return;
+            fetchLocations();
+        });
+        return remove;
+    }, [eventId, addListener]);
 
     const handleSearch = async (e) => {
         e.preventDefault();

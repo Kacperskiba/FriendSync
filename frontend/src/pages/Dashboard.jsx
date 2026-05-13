@@ -126,45 +126,89 @@ export default function Dashboard() {
         const token = localStorage.getItem('token');
 
         // Nawiąż połączenie (ignoruje jeśli już otwarte)
-        connect(currentUserId);
+        connect();
 
-        // Daj WS ~500ms na onopen, potem odśwież znajomych
-        // żeby is_online był już poprawny
+        // Daj WS ~500ms na onopen, potem odśwież znajomych żeby is_online był poprawny
         const timer = setTimeout(() => refreshFriends(token), 500);
 
-        const removeListener = addListener(async (data) => {
-            const token = localStorage.getItem('token');
+        const refreshEvents = async () => {
+            const t = localStorage.getItem('token');
+            try {
+                const res = await axios.get(API_URL, { headers: {Authorization: `Bearer ${t}`} });
+                setEvents(res.data);
+            } catch (err) {
+                console.error("Błąd odświeżania eventów:", err);
+            }
+        };
 
-            if (data.startsWith("status_update:")) {
-                const parts = data.split(":");
-                const userId = parseInt(parts[1]);
-                const isOnline = parts[2] === "online";
+        const refreshNotifs = async () => {
+            const t = localStorage.getItem('token');
+            try {
+                const res = await axios.get(NOTIF_API, { headers: {Authorization: `Bearer ${t}`} });
+                setNotifications(res.data);
+            } catch (err) {
+                console.error("Błąd odświeżania powiadomień:", err);
+            }
+        };
 
-                setFriends(prev => prev.map(f =>
-                    f.id === userId ? {...f, is_online: isOnline} : f
-                ));
-                setSelectedFriend(prev =>
-                    prev?.id === userId ? {...prev, is_online: isOnline} : prev
-                );
+        const removeStatus = addListener("user_status", (msg) => {
+            setFriends(prev => prev.map(f =>
+                f.id === msg.user_id ? {...f, is_online: msg.is_online} : f
+            ));
+            setSelectedFriend(prev =>
+                prev?.id === msg.user_id ? {...prev, is_online: msg.is_online} : prev
+            );
+        });
+
+        const removeNewReq = addListener("friend_request_new", async () => {
+            const t = localStorage.getItem('token');
+            try {
+                const res = await axios.get(`${FRIENDS_API}/pending`, {
+                    headers: {Authorization: `Bearer ${t}`}
+                });
+                setPendingRequests(res.data);
+            } catch (err) {
+                console.error("Błąd pobierania zaproszeń:", err);
             }
-            else if (data === "new_friend_request") {
-                try {
-                    const res = await axios.get(`${FRIENDS_API}/pending`, {
-                        headers: {Authorization: `Bearer ${token}`}
-                    });
-                    setPendingRequests(res.data);
-                } catch (err) {
-                    console.error("Błąd pobierania zaproszeń:", err);
-                }
-            }
-            else if (data === "friend_request_accepted") {
-                await refreshFriends(token);
-            }
+            refreshNotifs();
+        });
+
+        const removeAccepted = addListener("friend_request_accepted", async () => {
+            await refreshFriends(localStorage.getItem('token'));
+            refreshNotifs();
+        });
+
+        // Lista eventów też powinna się odświeżać (np. po dodaniu/usunięciu uczestnika)
+        const removeEventUpd = addListener("event_updated", () => {
+            refreshEvents();
+        });
+
+        const removeEventDel = addListener("event_deleted", (msg) => {
+            refreshEvents();
+            // Zamknij modal edycji jeśli edytujemy właśnie usunięty event
+            setEditingEvent(prev => (prev?.id === msg.event_id ? null : prev));
+        });
+
+        // Profil znajomego się zmienił — odśwież listę znajomych (zawiera avatar, bio, nick)
+        const removeProfileUpd = addListener("profile_updated", async () => {
+            await refreshFriends(localStorage.getItem('token'));
+        });
+
+        // Ktoś nas usunął ze znajomych
+        const removeFriendRm = addListener("friend_removed", async () => {
+            await refreshFriends(localStorage.getItem('token'));
+            setSelectedFriend(prev => (prev ? null : prev));
         });
 
         return () => {
             clearTimeout(timer);
-            removeListener(); // usuń listener, ale NIE zamykaj WS
+            removeStatus();
+            removeNewReq();
+            removeAccepted();
+            removeEventUpd();
+            removeEventDel();
+            removeProfileUpd();
+            removeFriendRm();
         };
     }, [currentUserId, connect, addListener]);
 

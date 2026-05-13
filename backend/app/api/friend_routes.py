@@ -41,7 +41,7 @@ async def add_friend(
         current_user: User = Depends(get_current_user)
 ):
     new_request = send_friend_request(db, current_user.id, request.friend_identifier)
-    await manager.broadcast_to_user(new_request.friend_id, "new_friend_request")
+    await manager.send_to_user(new_request.friend_id, {"type": "friend_request_new"})
     return new_request
 
 
@@ -52,7 +52,7 @@ async def accept_friend(
         current_user: User = Depends(get_current_user)
 ):
     accepted_request = accept_friend_request(db, friendship_id, current_user.id)
-    await manager.broadcast_to_user(accepted_request.user_id, "friend_request_accepted")
+    await manager.send_to_user(accepted_request.user_id, {"type": "friend_request_accepted"})
     return accepted_request
 
 
@@ -95,7 +95,7 @@ def search_users(q: str, db: Session = Depends(get_db), current_user: User = Dep
 
 
 @router.delete("/{friend_id}")
-def remove_friend(friend_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def remove_friend(friend_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from fastapi import HTTPException as FastHTTPException
     friendship = db.query(Friendship).filter(
         or_(
@@ -109,4 +109,5 @@ def remove_friend(friend_id: int, db: Session = Depends(get_db), current_user: U
 
     db.delete(friendship)
     db.commit()
+    await manager.send_to_user(friend_id, {"type": "friend_removed", "user_id": current_user.id})
     return {"message": "Znajomy usunięty"}
