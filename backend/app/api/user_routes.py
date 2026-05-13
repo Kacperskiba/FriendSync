@@ -12,6 +12,7 @@ from app.core.security import verify_password, create_access_token, get_password
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, Token
 from app.crud.user import get_user_by_email, get_user_by_username, create_user
+from pydantic import EmailStr
 import shutil
 import os
 from fastapi import UploadFile, File, Form
@@ -24,7 +25,7 @@ router = APIRouter(
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
-        email: str = Form(...),
+        email: EmailStr = Form(...),
         username: str = Form(...),
         password: str = Form(...),
         profile_image: UploadFile = File(None),  # Zdjęcie opcjonalne
@@ -86,8 +87,8 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 @router.patch("/me", response_model=UserResponse)
 async def update_user_profile(
     username: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),
-    confirm_email: Optional[str] = Form(None),  # Dodane
+    email: Optional[EmailStr] = Form(None),
+    confirm_email: Optional[EmailStr] = Form(None),  # Dodane
     password: Optional[str] = Form(None),
     confirm_password: Optional[str] = Form(None),  # Dodane
     profile_image: Optional[UploadFile] = File(None),

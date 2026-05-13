@@ -21,7 +21,7 @@ from app.crud.event import create_sub_event
 from app.schemas.event import EventUpdate, SubEventUpdate
 from app.api.websocket import manager
 
-from app.models.event import Event
+from app.models.event import Event, EventParticipant
 
 from app.models.sub_event import SubEvent
 
@@ -268,3 +268,71 @@ async def remove_sub_event(sub_event_id: int, db: Session = Depends(get_db)):
         delete_sub_event(db, sub_event_id)
         await manager.broadcast(event_id)
     return {"message": "Punkt usunięty"}
+
+
+@router.delete("/{event_id}/participants/{user_id}")
+async def remove_participant(event_id: int, user_id: int, db: Session = Depends(get_db),
+                             current_user: User = Depends(get_current_user)):
+
+    db_event = db.query(Event).filter(Event.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie znalezione")
+
+    is_organizer = db_event.creator_id == current_user.id or getattr(db_event, 'owner_id', None) == current_user.id
+
+    # Tylko organizator wyrzuca innych, ale każdy wyrzuca siebie
+    if not is_organizer and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Brak uprawnień")
+
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.user_id == user_id
+    ).first()
+
+    if participant:
+        db.delete(participant)
+        db.commit()
+
+        if db_event.creator_id == user_id or getattr(db_event, 'owner_id', None) == user_id:
+            # Szukamy kogoś, kto został
+            next_participant = db.query(EventParticipant).filter(EventParticipant.event_id == event_id).first()
+            if next_participant:
+                # Przekazujemy władzę
+                db_event.creator_id = next_participant.user_id
+                if hasattr(db_event, 'owner_id'):
+                    db_event.owner_id = next_participant.user_id
+                db.commit()
+            else:
+                # Nikogo nie ma - kasujemy wydarzenie (opcjonalnie)
+                db.delete(db_event)
+                db.commit()
+
+        await manager.broadcast(event_id)
+
+    return {"message": "Uczestnik usunięty z wydarzenia"}
+
+
+@router.put("/{event_id}/transfer-ownership/{new_owner_id}")
+async def transfer_ownership(event_id: int, new_owner_id: int, db: Session = Depends(get_db),
+                             current_user: User = Depends(get_current_user)):
+
+    db_event = db.query(Event).filter(Event.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie znalezione")
+
+    is_organizer = db_event.creator_id == current_user.id or getattr(db_event, 'owner_id', None) == current_user.id
+    if not is_organizer:
+        raise HTTPException(status_code=403, detail="Tylko organizator może przekazać uprawnienia")
+
+    new_participant = db.query(EventParticipant).filter(EventParticipant.event_id == event_id,
+                                                        EventParticipant.user_id == new_owner_id).first()
+    if not new_participant:
+        raise HTTPException(status_code=400, detail="Nowy organizator musi być uczestnikiem wyjazdu")
+
+    db_event.creator_id = new_owner_id
+    if hasattr(db_event, 'owner_id'):
+        db_event.owner_id = new_owner_id
+
+    db.commit()
+    await manager.broadcast(event_id)
+    return {"message": "Uprawnienia przekazane pomyślnie"}

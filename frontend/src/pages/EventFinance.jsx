@@ -3,6 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 
+// --- IMPORT IKON LUCIDE ---
+import {
+    ArrowLeft, CheckCircle, Sparkles, Handshake,
+    ShoppingCart, ShoppingBag, Banknote, Check
+} from 'lucide-react';
+
 export default function EventFinance() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -161,7 +167,7 @@ export default function EventFinance() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                     <div>
                         <button onClick={() => navigate(`/events/${id}`)} className="text-gray-600 hover:text-green-500 mb-4 flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-[0.3em]">
-                            ← Powrót do wydarzenia
+                            <ArrowLeft size={14} /> Powrót do wydarzenia
                         </button>
                         <h1 className="text-6xl font-black italic tracking-tighter uppercase leading-none">Portfel<span className="text-green-500">.</span></h1>
                     </div>
@@ -195,12 +201,17 @@ export default function EventFinance() {
                                     </div>
                                     <button
                                         onClick={() => handleSettle(s.to_user_id, s.amount)}
-                                        className="w-full py-4 bg-red-500/5 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/20 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all"
+                                        className="w-full py-4 flex items-center justify-center gap-2 bg-red-500/5 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/20 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all"
                                     >
-                                        Oznacz jako zapłacone 💸
+                                        Oznacz jako zapłacone <CheckCircle size={14} />
                                     </button>
                                 </div>
-                            )) : <div className="text-center py-10 opacity-20"><p className="text-4xl mb-4">✨</p><p className="text-[10px] font-black uppercase tracking-widest">Brak długów</p></div>}
+                            )) : (
+                                <div className="text-center py-10 opacity-20 flex flex-col items-center">
+                                    <Sparkles size={40} className="mb-4 text-white" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">Brak długów</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -221,7 +232,12 @@ export default function EventFinance() {
                                         <p className="text-[8px] text-gray-700 font-black uppercase tracking-widest">PLN</p>
                                     </div>
                                 </div>
-                            )) : <div className="text-center py-10 opacity-20"><p className="text-4xl mb-4">🤝</p><p className="text-[10px] font-black uppercase tracking-widest">Czysta karta</p></div>}
+                            )) : (
+                                <div className="text-center py-10 opacity-20 flex flex-col items-center">
+                                    <Handshake size={40} className="mb-4 text-white" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">Czysta karta</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -232,14 +248,18 @@ export default function EventFinance() {
                     {/* KOLUMNA: ZAKUPY */}
                     <div>
                         <div className="flex items-center gap-4 mb-8">
-                            <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] whitespace-nowrap">🛒 Log zakupów</h3>
+                            <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] whitespace-nowrap flex items-center gap-2">
+                                <ShoppingCart size={14} /> Log zakupów
+                            </h3>
                             <div className="h-px flex-1 bg-white/5"></div>
                         </div>
                         <div className="space-y-3">
                             {purchaseExpenses.length > 0 ? [...purchaseExpenses].reverse().map(exp => (
                                 <div key={exp.id} className="bg-[#0f0f0f] hover:bg-[#131313] p-5 rounded-[2rem] border border-white/5 flex justify-between items-center transition-all group">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-lg grayscale group-hover:grayscale-0 transition-all border border-white/5">🛍️</div>
+                                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center grayscale group-hover:grayscale-0 transition-all border border-white/5 text-gray-400 group-hover:text-green-500">
+                                            <ShoppingBag size={18} />
+                                        </div>
                                         <div>
                                             <h4 className="font-black text-sm text-white uppercase tracking-tight italic">{exp.description || "Zakup"}</h4>
                                             <p className="text-[8px] font-black text-green-500 uppercase tracking-widest">{getUsername(exp.payer_id)} zapłacił(a)</p>
@@ -257,14 +277,18 @@ export default function EventFinance() {
                     {/* KOLUMNA: SPŁATY */}
                     <div>
                         <div className="flex items-center gap-4 mb-8">
-                            <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] whitespace-nowrap">💸 Log spłat</h3>
+                            <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] whitespace-nowrap flex items-center gap-2">
+                                <Banknote size={14} /> Log spłat
+                            </h3>
                             <div className="h-px flex-1 bg-white/5"></div>
                         </div>
                         <div className="space-y-3">
                             {settlementExpenses.length > 0 ? [...settlementExpenses].reverse().map(exp => (
                                 <div key={exp.id} className="bg-[#0f0f0f]/50 hover:bg-[#131313] p-5 rounded-[2rem] border border-green-500/10 flex justify-between items-center transition-all group">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-green-500/5 rounded-xl flex items-center justify-center text-lg border border-green-500/20">✅</div>
+                                        <div className="w-10 h-10 bg-green-500/5 rounded-xl flex items-center justify-center border border-green-500/20 text-green-500">
+                                            <Check size={20} />
+                                        </div>
                                         <div>
                                             <h4 className="font-black text-sm text-gray-400 uppercase tracking-tight italic">Spłata długu</h4>
                                             <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">
@@ -319,7 +343,9 @@ export default function EventFinance() {
                                     {participants.map(p => (
                                         <label key={p.id} className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border-2 ${selectedUsers.includes(p.id) ? 'bg-green-600/10 border-green-600/50' : 'bg-black border-transparent hover:border-white/10'}`}>
                                             <input type="checkbox" className="hidden" checked={selectedUsers.includes(p.id)} onChange={() => toggleUser(p.id)} />
-                                            <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${selectedUsers.includes(p.id) ? 'bg-green-600 border-green-600' : 'border-gray-800'}`}>{selectedUsers.includes(p.id) && <span className="text-[10px] text-white font-black">✓</span>}</div>
+                                            <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${selectedUsers.includes(p.id) ? 'bg-green-600 border-green-600' : 'border-gray-800'}`}>
+                                                {selectedUsers.includes(p.id) && <Check size={12} strokeWidth={4} className="text-white" />}
+                                            </div>
                                             <span className={`text-[11px] font-black uppercase tracking-tight ${selectedUsers.includes(p.id) ? 'text-white' : 'text-gray-600'}`}>{p.username}</span>
                                         </label>
                                     ))}

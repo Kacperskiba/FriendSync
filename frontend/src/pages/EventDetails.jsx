@@ -10,7 +10,7 @@ registerLocale("pl", pl);
 import {
     Bell, Map, CalendarDays, Trash2, Pencil, MapPin,
     MessageSquare, Wallet, LogOut, Settings, User,
-    Plus, ChevronDown, X, Check, Send
+    Plus, ChevronDown, X, Check, Send, UserMinus, Crown
 } from 'lucide-react';
 import { API_BASE_URL } from '../services/api';
 const API_URL = `${API_BASE_URL}/api/events`;
@@ -59,7 +59,41 @@ export default function EventDetails() {
             setParticipants(res.data);
         } catch (err) { console.error("Błąd uczestników:", err); }
     };
+    const handleRemoveParticipant = async (userId) => {
+        const isSelf = userId === currentUserId;
+        const amIOrganizer = event.creator_id === currentUserId || event.owner_id === currentUserId;
 
+        let msg = "Czy na pewno chcesz wyrzucić tę osobę z ekipy?";
+        if (isSelf) {
+            msg = amIOrganizer
+                ? "Jesteś organizatorem! Jeśli opuścisz wydarzenie, uprawnienia przejdą na losową osobę z ekipy. Czy na pewno chcesz uciec?"
+                : "Czy na pewno chcesz opuścić to wydarzenie?";
+        }
+
+        if (!window.confirm(msg)) return;
+
+        const token = localStorage.getItem('token');
+        try {
+            await axios.delete(`${API_URL}/${id}/participants/${userId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (isSelf) navigate('/dashboard');
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd podczas usuwania z ekipy.");
+        }
+    };
+
+    const handleTransferOwnership = async (newOwnerId) => {
+        if (!window.confirm("Czy na pewno chcesz oddać dowodzenie tej osobie? Staniesz się zwykłym uczestnikiem.")) return;
+        const token = localStorage.getItem('token');
+        try {
+            await axios.put(`${API_URL}/${id}/transfer-ownership/${newOwnerId}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd podczas przekazywania uprawnień.");
+        }
+    };
     const fetchMessages = async () => {
         const token = localStorage.getItem('token');
         try {
@@ -443,16 +477,67 @@ export default function EventDetails() {
                         </div>
 
                         <div className="space-y-3 custom-scrollbar max-h-[40vh] overflow-y-auto pr-2">
-                            {participants.map((user) => (
-                                <div key={user.id} className="flex items-center gap-4 bg-black p-4 rounded-2xl border border-white/5 group hover:border-green-500/30 transition-all">
-                                    {renderAvatar(user.profile_image, user.username)}
-                                    <div>
-                                        <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">{user.username}</span>
-                                        <span className="block text-[8px] font-black uppercase text-gray-600 tracking-widest">{user.id === event.owner_id || user.id === event.creator_id ? "Organizator" : "Uczestnik"}</span>
+                            {participants.map((user) => {
+                            const isOrganizer = user.id === event.owner_id || user.id === event.creator_id;
+                            const isMe = user.id === currentUserId;
+                            const amIOrganizer = event.creator_id === currentUserId || event.owner_id === currentUserId;
+
+                            const canRemoveOther = amIOrganizer && !isOrganizer;
+                            const canLeave = isMe; // Teraz każdy organizator też może kliknąć by wyjść
+                            const canTransfer = amIOrganizer && !isOrganizer && !isMe; // Szef oddaje władzę innemu
+
+                            return (
+                                <div key={user.id} className="flex items-center justify-between bg-black p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        {renderAvatar(user.profile_image, user.username)}
+                                        <div>
+                                            <span className="block text-[11px] font-black uppercase tracking-tight text-white italic truncate">
+                                                {user.username} {isMe && <span className="text-gray-600 font-medium ml-1">(Ty)</span>}
+                                            </span>
+                                            <span className={`block text-[8px] font-black uppercase tracking-widest ${isOrganizer ? 'text-yellow-500' : 'text-gray-600'}`}>
+                                                {isOrganizer ? "Organizator"  : "Uczestnik"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {/* PRZYCISK: Transfer Korony */}
+                                        {canTransfer && (
+                                            <button
+                                                onClick={() => handleTransferOwnership(user.id)}
+                                                className="p-2 text-gray-500 hover:text-yellow-500 hover:bg-yellow-500/10 rounded-lg transition-all"
+                                                title="Przekaż organizatora"
+                                            >
+                                                <Crown size={16} />
+                                            </button>
+                                        )}
+
+                                        {/* PRZYCISK: Wyrzucanie innych */}
+                                        {canRemoveOther && (
+                                            <button
+                                                onClick={() => handleRemoveParticipant(user.id)}
+                                                className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                title="Wyrzuć z ekipy"
+                                            >
+                                                <UserMinus size={16} />
+                                            </button>
+                                        )}
+
+
+                                        {canLeave && (
+                                            <button
+                                                onClick={() => handleRemoveParticipant(user.id)}
+                                                className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                title="Opuść wydarzenie"
+                                            >
+                                                <LogOut size={16} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                            );
+                        })}
+                            </div>
                     </div>
 
                     {/* KARTA WBUDOWANEJ MAPY - Wyszta wysokość 500px */}

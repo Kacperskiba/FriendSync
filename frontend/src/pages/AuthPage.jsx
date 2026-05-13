@@ -101,8 +101,8 @@ export default function AuthPage() {
           )}
 
           <div>
-            <label className="text-[9px] font-black uppercase text-gray-500 ml-2 mb-1 block italic">Email / Login</label>
-            <input name="email" type="text" required className="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm" onChange={handleChange} />
+            <label className="text-[9px] font-black uppercase text-gray-500 ml-2 mb-1 block italic">Email</label>
+            <input name="email" type="email" required className="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm" onChange={handleChange} />
           </div>
 
           {!isLogin && (

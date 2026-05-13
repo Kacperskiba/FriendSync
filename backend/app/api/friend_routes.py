@@ -1,14 +1,16 @@
+from http.client import HTTPException
+from operator import or_
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from typing import List
-
 from app.core.database import get_db
 from app.models.user import User
 from app.api.dependencies import get_current_user
 from app.schemas.friendship import FriendRequestCreate, FriendUserResponse, PendingRequestResponse
 from app.crud.friendship import send_friend_request, accept_friend_request, get_friends, get_pending_requests
-
 from app.api.websocket import manager
+from app.models.friendship import Friendship
 
 router = APIRouter(
     prefix="/api/friends",
@@ -68,3 +70,21 @@ def search_users(q: str, db: Session = Depends(get_db), current_user: User = Dep
             "profile_image": getattr(u, 'profile_image', None)
         } for u in users
     ]
+
+
+
+@router.delete("/{friend_id}")
+def remove_friend(friend_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    friendship = db.query(Friendship).filter(
+        or_(
+            (Friendship.user_id == current_user.id) & (Friendship.friend_id == friend_id),
+            (Friendship.user_id == friend_id) & (Friendship.friend_id == current_user.id)
+        )
+    ).first()
+
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Nie znaleziono znajomości")
+
+    db.delete(friendship)
+    db.commit()
+    return {"message": "Znajomy usunięty"}
