@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../services/api';
+import { ArrowLeft } from 'lucide-react';
 
 export default function EditProfilePage() {
     const navigate = useNavigate();
@@ -126,7 +127,7 @@ export default function EditProfilePage() {
                     onClick={() => navigate('/dashboard')}
                     className="relative z-10 mb-8 text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 hover:text-green-500 transition-colors flex items-center gap-2"
                 >
-                    <span>←</span> Powrót do Dashboardu
+                    <ArrowLeft size={14} /> Powrót do Dashboardu
                 </button>
 
                 <h1 className="text-4xl md:text-5xl font-black italic uppercase mb-10 tracking-tighter">

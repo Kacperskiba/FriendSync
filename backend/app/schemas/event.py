@@ -46,3 +46,28 @@ class SubEventUpdate(BaseModel):
     start_time: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InviterMini(BaseModel):
+    id: int
+    username: str
+    profile_image: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventMini(BaseModel):
+    id: int
+    title: str
+    event_date: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventInvitationResponse(BaseModel):
+    id: int
+    event: EventMini
+    inviter: InviterMini
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

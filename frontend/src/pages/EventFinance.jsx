@@ -6,7 +6,7 @@ import { useWebSocket } from '../components/WebSocketContext';
 
 // --- IMPORT IKON LUCIDE ---
 import {
-    ArrowLeft, CheckCircle, Sparkles, Handshake,
+    ArrowLeft, ArrowRight, CheckCircle, Sparkles, Handshake,
     ShoppingCart, ShoppingBag, Banknote, Check
 } from 'lucide-react';
 
@@ -279,8 +279,8 @@ export default function EventFinance() {
                                         </div>
                                         <div>
                                             <h4 className="font-black text-sm text-gray-400 uppercase tracking-tight italic">Spłata długu</h4>
-                                            <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">
-                                                {getUsername(exp.payer_id)} → {getUsername(exp.shares[0]?.user_id)}
+                                            <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                                                {getUsername(exp.payer_id)} <ArrowRight size={9} /> {getUsername(exp.shares[0]?.user_id)}
                                             </p>
                                         </div>
                                     </div>

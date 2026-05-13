@@ -6,7 +6,7 @@ from app.core.database import engine, Base
 from app.api import user_routes
 from app.api import event_routes
 from app.api import location_routes
-from app.models import user, event, expense, location, message, friendship, notification
+from app.models import user, event, expense, location, message, friendship, notification, event_invitation
 from app.api import friend_routes
 from app.api import notification_routes
 from fastapi.staticfiles import StaticFiles

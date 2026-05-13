@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.api.dependencies import get_current_user
 from app.schemas.notification import NotificationResponse
-from app.crud.notification import get_user_notifications, mark_notification_as_read
+from app.crud.notification import get_user_notifications, mark_notification_as_read, delete_all_notifications
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
@@ -18,3 +18,8 @@ def get_my_notifications(unread_only: bool = False, db: Session = Depends(get_db
 def mark_as_read(notification_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     mark_notification_as_read(db, notification_id, current_user.id)
     return {"message": "Oznaczono jako przeczytane"}
+
+@router.delete("", status_code=status.HTTP_200_OK)
+def clear_all(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    count = delete_all_notifications(db, current_user.id)
+    return {"message": "Wyczyszczono powiadomienia", "deleted": count}

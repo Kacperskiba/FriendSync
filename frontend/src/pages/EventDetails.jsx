@@ -11,7 +11,8 @@ registerLocale("pl", pl);
 import {
     Bell, Map, CalendarDays, Trash2, Pencil, MapPin,
     MessageSquare, Wallet, LogOut, Settings, User,
-    Plus, ChevronDown, X, Check, Send, UserMinus, Crown
+    Plus, ChevronDown, X, Check, Send, UserMinus, Crown,
+    ArrowLeft
 } from 'lucide-react';
 import { API_BASE_URL } from '../services/api';
 const API_URL = `${API_BASE_URL}/api/events`;
@@ -264,7 +265,7 @@ export default function EventDetails() {
             {/* NAWIGACJA GÓRNA - max-w-[1600px] */}
             <div className="max-w-[1600px] w-full mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-8 md:mb-12 gap-6 relative z-10">
                 <button onClick={() => navigate('/dashboard')} className="text-gray-600 hover:text-white flex items-center gap-2 font-black uppercase text-[10px] tracking-[0.3em] transition-all">
-                    ← Powrót
+                    <ArrowLeft size={14} /> Powrót
                 </button>
                 <div className="flex gap-4 w-full md:w-auto">
                     <button onClick={() => setIsMapOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all shadow-lg"><MapPin size={16} /></button>
@@ -560,7 +561,7 @@ export default function EventDetails() {
                     <div className="relative w-full max-w-6xl h-full max-h-[85vh] bg-[#0f0f0f] border border-white/10 rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col">
                         <div className="p-6 bg-black border-b border-white/5 flex justify-between items-center">
                             <h3 className="font-black uppercase text-xs tracking-[0.3em] text-green-500 italic">Pełna Mapa Wydarzenia</h3>
-                            <button onClick={() => setIsMapOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full text-gray-500 hover:text-white transition-all">✕</button>
+                            <button onClick={() => setIsMapOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full text-gray-500 hover:text-white transition-all"><X size={16} /></button>
                         </div>
                         <div className="flex-1 relative">
                             <EventMapComponent eventId={id}/>
@@ -574,7 +575,7 @@ export default function EventDetails() {
                 <div className="fixed bottom-8 right-8 w-full max-w-md h-[600px] bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10">
                     <div className="bg-black p-6 flex justify-between items-center border-b border-white/5">
                         <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-green-500 italic">Czat wydarzenia</h3>
-                        <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-white transition-all">✕</button>
+                        <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-white transition-all"><X size={16} /></button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#0a0a0a] flex flex-col custom-scrollbar">

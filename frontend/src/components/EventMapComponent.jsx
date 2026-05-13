@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import { useWebSocket } from './WebSocketContext';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -158,13 +159,13 @@ export default function EventMapComponent({ eventId }) {
                                             onClick={() => handleVote(loc.id, 1)}
                                             className="w-10 h-10 bg-black text-white rounded-xl flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg active:scale-90"
                                         >
-                                            ▲
+                                            <ChevronUp size={18} />
                                         </button>
                                         <button
                                             onClick={() => handleVote(loc.id, -1)}
                                             className="w-10 h-10 bg-white border border-gray-200 text-black rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors shadow-sm active:scale-90"
                                         >
-                                            ▼
+                                            <ChevronDown size={18} />
                                         </button>
                                     </div>
                                 </div>

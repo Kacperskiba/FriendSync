@@ -18,9 +18,11 @@ from app.api.websocket import manager
 from app.schemas.event import SubEventCreate, SubEventResponse
 from app.crud.event import create_sub_event
 
-from app.schemas.event import EventUpdate, SubEventUpdate
+from app.schemas.event import EventUpdate, SubEventUpdate, EventInvitationResponse
 
 from app.models.event import Event, EventParticipant
+from app.models.event_invitation import EventInvitation
+from app.crud.notification import create_notification
 
 from app.models.sub_event import SubEvent
 
@@ -118,11 +120,114 @@ async def invite_friend_to_event(
     if existing_participant:
         raise HTTPException(status_code=400, detail="Ten użytkownik jest już w tym wydarzeniu.")
 
-    # 5. Dodajemy znajomego do wydarzenia
-    add_user_to_event(db=db, event_id=event_id, user_id=friend.id)
+    # 4b. Sprawdzamy czy nie wisi już zaproszenie
+    existing_inv = db.query(EventInvitation).filter(
+        EventInvitation.event_id == event_id,
+        EventInvitation.user_id == friend.id,
+        EventInvitation.status == "pending"
+    ).first()
+    if existing_inv:
+        raise HTTPException(status_code=400, detail="Zaproszenie do tego wydarzenia już zostało wysłane.")
 
+    # 5. Tworzymy zaproszenie (status pending)
+    invitation = EventInvitation(
+        event_id=event_id,
+        user_id=friend.id,
+        inviter_id=current_user.id,
+        status="pending"
+    )
+    db.add(invitation)
+    db.commit()
+    db.refresh(invitation)
+
+    create_notification(
+        db=db,
+        user_id=friend.id,
+        notif_type="event_invitation",
+        message=f"{current_user.username} zaprosił Cię do wydarzenia „{event.title}”."
+    )
+
+    await manager.send_to_user(friend.id, {"type": "event_invitation_new"})
+    return {"message": f"Wysłano zaproszenie do {friend.username}."}
+
+
+@router.get("/invitations", response_model=List[EventInvitationResponse])
+def list_my_event_invitations(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Zwraca pending zaproszenia do wydarzeń dla zalogowanego usera."""
+    return db.query(EventInvitation).filter(
+        EventInvitation.user_id == current_user.id,
+        EventInvitation.status == "pending"
+    ).order_by(EventInvitation.created_at.desc()).all()
+
+
+@router.post("/invitations/{invitation_id}/accept")
+async def accept_event_invitation(
+        invitation_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    inv = db.query(EventInvitation).filter(
+        EventInvitation.id == invitation_id,
+        EventInvitation.user_id == current_user.id,
+        EventInvitation.status == "pending"
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Zaproszenie nie istnieje.")
+
+    event_id = inv.event_id
+    inviter_id = inv.inviter_id
+
+    # Dodaj jako uczestnika i usuń invitation
+    add_user_to_event(db=db, event_id=event_id, user_id=current_user.id)
+    db.delete(inv)
+    db.commit()
+
+    # Powiadomienie dla zapraszającego
+    ev = db.query(Event).filter(Event.id == event_id).first()
+    create_notification(
+        db=db,
+        user_id=inviter_id,
+        notif_type="event_invitation_accepted",
+        message=f"{current_user.username} dołączył do „{ev.title if ev else 'wydarzenia'}”."
+    )
+    await manager.send_to_user(inviter_id, {"type": "event_invitation_resolved"})
+
+    # Wszyscy uczestnicy (włącznie z nowym) widzą zmianę
     await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
-    return {"message": f"Użytkownik {friend.username} został dodany do wydarzenia!"}
+    return {"message": "Zaproszenie zaakceptowane."}
+
+
+@router.post("/invitations/{invitation_id}/decline")
+async def decline_event_invitation(
+        invitation_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    inv = db.query(EventInvitation).filter(
+        EventInvitation.id == invitation_id,
+        EventInvitation.user_id == current_user.id,
+        EventInvitation.status == "pending"
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Zaproszenie nie istnieje.")
+
+    inviter_id = inv.inviter_id
+    event_id = inv.event_id
+    db.delete(inv)
+    db.commit()
+
+    ev = db.query(Event).filter(Event.id == event_id).first()
+    create_notification(
+        db=db,
+        user_id=inviter_id,
+        notif_type="event_invitation_declined",
+        message=f"{current_user.username} odrzucił zaproszenie do „{ev.title if ev else 'wydarzenia'}”."
+    )
+    await manager.send_to_user(inviter_id, {"type": "event_invitation_resolved"})
+    return {"message": "Zaproszenie odrzucone."}
 
 
 # --- CZAT: WYSYŁANIE WIADOMOŚCI ---

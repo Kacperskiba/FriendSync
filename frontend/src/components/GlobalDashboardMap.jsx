@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import { useWebSocket } from './WebSocketContext';
+import { ArrowRight } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -161,9 +162,9 @@ export default function GlobalDashboardMap() {
                                     </div>
                                     <button
                                         onClick={() => navigate(`/events/${loc.event_id}`)}
-                                        className="text-[9px] font-black uppercase bg-black text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                                        className="text-[9px] font-black uppercase bg-black text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
                                     >
-                                        Szczegóły →
+                                        Szczegóły <ArrowRight size={10} />
                                     </button>
                                 </div>
                             </div>

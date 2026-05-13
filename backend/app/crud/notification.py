@@ -24,3 +24,9 @@ def mark_notification_as_read(db: Session, notification_id: int, user_id: int):
         notif.is_read = True
         db.commit()
     return notif
+
+def delete_all_notifications(db: Session, user_id: int) -> int:
+    """Usuwa wszystkie powiadomienia użytkownika. Zwraca liczbę usuniętych."""
+    count = db.query(Notification).filter(Notification.user_id == user_id).delete()
+    db.commit()
+    return count

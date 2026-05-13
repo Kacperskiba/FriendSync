@@ -40,3 +40,7 @@ class FinanceSummaryResponse(BaseModel):
     event_id: int
     total_event_cost: float = Field(..., description="Ile łącznie wydano na całym wyjeździe")
     settlements: List[DebtSettlement] = Field(..., description="Lista przelewów do wyrównania rachunków")
+
+class GlobalFinanceSummaryResponse(BaseModel):
+    total_to_pay: float = Field(..., description="Suma długów usera ze wszystkich eventów")
+    total_to_receive: float = Field(..., description="Suma kwot, które są winni userowi")

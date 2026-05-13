@@ -92,3 +92,30 @@ def calculate_finance_summary(db: Session, event_id: int):
         "total_event_cost": round(total_cost, 2),
         "settlements": settlements
     }
+
+
+def calculate_global_finance_summary(db: Session, user_id: int):
+    """Sumuje długi usera ze wszystkich eventów w których uczestniczy."""
+    from app.models.event import EventParticipant
+
+    event_ids = [
+        p.event_id for p in db.query(EventParticipant.event_id).filter(
+            EventParticipant.user_id == user_id
+        ).all()
+    ]
+
+    total_to_pay = 0.0
+    total_to_receive = 0.0
+
+    for eid in event_ids:
+        summary = calculate_finance_summary(db, eid)
+        for s in summary["settlements"]:
+            if s.from_user_id == user_id:
+                total_to_pay += s.amount
+            elif s.to_user_id == user_id:
+                total_to_receive += s.amount
+
+    return {
+        "total_to_pay": round(total_to_pay, 2),
+        "total_to_receive": round(total_to_receive, 2),
+    }

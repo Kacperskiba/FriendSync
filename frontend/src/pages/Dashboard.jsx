@@ -3,6 +3,11 @@ import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import EventMapComponent from '../components/GlobalDashboardMap.jsx';
 import { useWebSocket } from '../components/WebSocketContext';
+import {
+    Map, Bell, ChevronDown, Settings, User, LogOut, Pencil, Trash2,
+    CalendarDays, Calendar, ArrowRight, X, Check, Plus, UserPlus,
+    UserMinus, TrendingDown, TrendingUp
+} from 'lucide-react';
 
 import DatePicker, {registerLocale} from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -36,6 +41,7 @@ export default function Dashboard() {
     const [activeFriendTab, setActiveFriendTab] = useState('list');
     const [friends, setFriends] = useState([]);
     const [pendingRequests, setPendingRequests] = useState([]);
+    const [eventInvitations, setEventInvitations] = useState([]);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
@@ -115,6 +121,8 @@ export default function Dashboard() {
 
         fetchUserProfile();
         fetchInitialData();
+        refreshFinances();
+        refreshEventInvitations();
 
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [navigate]);
@@ -181,10 +189,12 @@ export default function Dashboard() {
         // Lista eventów też powinna się odświeżać (np. po dodaniu/usunięciu uczestnika)
         const removeEventUpd = addListener("event_updated", () => {
             refreshEvents();
+            refreshFinances();
         });
 
         const removeEventDel = addListener("event_deleted", (msg) => {
             refreshEvents();
+            refreshFinances();
             // Zamknij modal edycji jeśli edytujemy właśnie usunięty event
             setEditingEvent(prev => (prev?.id === msg.event_id ? null : prev));
         });
@@ -200,6 +210,17 @@ export default function Dashboard() {
             setSelectedFriend(prev => (prev ? null : prev));
         });
 
+        // Nowe zaproszenie do wydarzenia
+        const removeInvNew = addListener("event_invitation_new", () => {
+            refreshEventInvitations();
+            refreshNotifs();
+        });
+
+        // Ktoś odpowiedział na zaproszenie które wysłaliśmy
+        const removeInvResolved = addListener("event_invitation_resolved", () => {
+            refreshNotifs();
+        });
+
         return () => {
             clearTimeout(timer);
             removeStatus();
@@ -209,6 +230,8 @@ export default function Dashboard() {
             removeEventDel();
             removeProfileUpd();
             removeFriendRm();
+            removeInvNew();
+            removeInvResolved();
         };
     }, [currentUserId, connect, addListener]);
 
@@ -328,6 +351,81 @@ export default function Dashboard() {
         } catch (err) {}
     };
 
+    const [financeSummary, setFinanceSummary] = useState({ total_to_pay: 0, total_to_receive: 0 });
+
+    const refreshEventInvitations = async () => {
+        const t = localStorage.getItem('token');
+        try {
+            const res = await axios.get(`${API_URL}/invitations`, {
+                headers: {Authorization: `Bearer ${t}`}
+            });
+            setEventInvitations(res.data);
+        } catch (err) {
+            console.error("Błąd zaproszeń do wydarzeń:", err);
+        }
+    };
+
+    const handleAcceptEventInvitation = async (invId) => {
+        const token = localStorage.getItem('token');
+        try {
+            await axios.post(`${API_URL}/invitations/${invId}/accept`, {}, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            setEventInvitations(prev => prev.filter(i => i.id !== invId));
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd akceptacji zaproszenia.");
+        }
+    };
+
+    const handleDeclineEventInvitation = async (invId) => {
+        const token = localStorage.getItem('token');
+        try {
+            await axios.post(`${API_URL}/invitations/${invId}/decline`, {}, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            setEventInvitations(prev => prev.filter(i => i.id !== invId));
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd odrzucenia zaproszenia.");
+        }
+    };
+
+    const refreshFinances = async () => {
+        const t = localStorage.getItem('token');
+        try {
+            const res = await axios.get(`${BASE_URL}/api/users/me/finances/summary`, {
+                headers: {Authorization: `Bearer ${t}`}
+            });
+            setFinanceSummary(res.data);
+        } catch (err) {
+            console.error("Błąd podsumowania finansów:", err);
+        }
+    };
+
+    const handleRemoveFriend = async (friendId) => {
+        if (!window.confirm("Czy na pewno chcesz usunąć tego znajomego?")) return;
+        const token = localStorage.getItem('token');
+        try {
+            await axios.delete(`${FRIENDS_API}/${friendId}`, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
+            setFriends(prev => prev.filter(f => f.id !== friendId));
+            setSelectedFriend(null);
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd usuwania znajomego.");
+        }
+    };
+
+    const handleClearAllNotifs = async () => {
+        if (!window.confirm("Usunąć wszystkie powiadomienia?")) return;
+        const token = localStorage.getItem('token');
+        try {
+            await axios.delete(NOTIF_API, { headers: {Authorization: `Bearer ${token}`} });
+            setNotifications([]);
+        } catch (err) {
+            alert("Nie udało się wyczyścić powiadomień.");
+        }
+    };
+
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
     const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10", isOnline = false) => {
@@ -383,17 +481,38 @@ export default function Dashboard() {
 
                 <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full lg:w-auto">
 
+                    <div className="flex items-center gap-2">
+                        <div
+                            title="Do zapłaty łącznie"
+                            className="flex items-center gap-2 px-3 py-2 bg-[#0f0f0f] border border-red-500/20 rounded-xl shadow-md"
+                        >
+                            <TrendingDown size={14} className="text-red-500" />
+                            <span className="text-[16px] font-black italic text-red-500 tracking-tight">
+                                {financeSummary.total_to_pay.toFixed(2)}
+                            </span>
+                        </div>
+                        <div
+                            title="Należy się łącznie"
+                            className="flex items-center gap-2 px-3 py-2 bg-[#0f0f0f] border border-green-500/20 rounded-xl shadow-md"
+                        >
+                            <TrendingUp size={14} className="text-green-500" />
+                            <span className="text-[16px] font-black italic text-green-500 tracking-tight">
+                                {financeSummary.total_to_receive.toFixed(2)}
+                            </span>
+                        </div>
+                    </div>
+
                     <button
                         onClick={() => setIsGlobalMapOpen(true)}
-                        className="bg-[#0f0f0f] hover:bg-[#151515] text-white font-black uppercase text-lg md:text-xl px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl"
+                        className="bg-[#0f0f0f] hover:bg-[#151515] text-white px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl flex items-center justify-center"
                     >
-                        🗺️
+                        <Map size={20} />
                     </button>
                     <button
                         onClick={() => setIsNotifOpen(true)}
-                        className="relative bg-[#0f0f0f] hover:bg-[#151515] text-white font-black uppercase text-lg md:text-xl px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl"
+                        className="relative bg-[#0f0f0f] hover:bg-[#151515] text-white px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl flex items-center justify-center"
                     >
-                        🔔
+                        <Bell size={20} />
                         {unreadCount > 0 && (
                             <span
                                 className="absolute top-2 right-2 md:right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0f0f0f]"></span>
@@ -406,9 +525,9 @@ export default function Dashboard() {
                             setNewEventData({title: '', description: '', event_date: null});
                             setIsModalOpen(true);
                         }}
-                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-6 py-4 md:px-8 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-[0_10px_30px_rgba(34,197,94,0.2)] text-center"
+                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-6 py-4 md:px-8 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-[0_10px_30px_rgba(34,197,94,0.2)] text-center flex items-center justify-center gap-2"
                     >
-                        + Nowe wydarzenie
+                        <Plus size={14} /> Nowe wydarzenie
                     </button>
 
                     <div className="relative w-full sm:w-auto mt-2 sm:mt-0" ref={menuRef}>
@@ -420,8 +539,10 @@ export default function Dashboard() {
                                 {username}
                             </span>
                             </div>
-                            <span
-                                className={`text-[8px] transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`}>▼</span>
+                            <ChevronDown
+                                size={14}
+                                className={`transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`}
+                            />
                         </button>
 
                         {isUserMenuOpen && (
@@ -433,8 +554,8 @@ export default function Dashboard() {
                                     <p className="text-xs font-black italic text-green-500 truncate">{username}</p>
                                 </div>
                                 <button onClick={() => navigate('/settings')}
-                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">⚙️
-                                    Ustawienia
+                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">
+                                    <Settings size={14} /> Ustawienia
                                 </button>
                                 <button
                                     onClick={() => {
@@ -443,12 +564,12 @@ export default function Dashboard() {
                                     }}
                                     className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3"
                                 >
-                                    👤 Edytuj Profil
+                                    <User size={14} /> Edytuj Profil
                                 </button>
                                 <div className="h-px bg-white/5 my-2 mx-4"></div>
                                 <button onClick={handleLogout}
-                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3">🚪
-                                    Wyloguj się
+                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3">
+                                    <LogOut size={14} /> Wyloguj się
                                 </button>
                             </div>
                         )}
@@ -498,37 +619,33 @@ export default function Dashboard() {
                                         onClick={() => navigate(`/events/${event.id}`)}
                                         className="group bg-[#0f0f0f] p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 hover:border-green-500/30 hover:bg-[#151515] transition-all cursor-pointer relative overflow-hidden shadow-2xl flex flex-col"
                                     >
-                                        <div className="flex gap-2 relative z-20 mb-4 justify-end">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingEvent(event);
-                                                    setNewEventData({
-                                                        title: event.title,
-                                                        description: event.description || '',
-                                                        event_date: event.event_date ? new Date(event.event_date) : null
-                                                    });
-                                                    setIsModalOpen(true);
-                                                }}
-                                                className="hover:text-green-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
-                                            >✏️
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleDeleteEvent(e, event.id)}
-                                                className="hover:text-red-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
-                                            >🗑️
-                                            </button>
-                                        </div>
                                         <div className="relative z-10 flex flex-col h-full">
-                                            <div className="flex justify-between items-start mb-4">
+                                            <div className="flex justify-between items-center mb-4">
                                                 <div
-                                                    className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-lg md:text-xl grayscale group-hover:grayscale-0 group-hover:scale-110 transition-all">
-                                                    📅
+                                                    className="w-10 h-10 md:w-12 md:h-12 bg-black rounded-xl flex items-center justify-center text-green-500 group-hover:scale-110 transition-all">
+                                                    <CalendarDays size={20} />
                                                 </div>
-                                                <span
-                                                    className="text-[8px] md:text-[9px] font-black text-gray-700 uppercase tracking-widest bg-black px-3 py-1 rounded-full border border-white/5">
-                                                    ID: {event.id}
-                                                </span>
+                                                <div className="flex gap-2 relative z-20">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingEvent(event);
+                                                            setNewEventData({
+                                                                title: event.title,
+                                                                description: event.description || '',
+                                                                event_date: event.event_date ? new Date(event.event_date) : null
+                                                            });
+                                                            setIsModalOpen(true);
+                                                        }}
+                                                        className="hover:text-green-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
+                                                    ><Pencil size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDeleteEvent(e, event.id)}
+                                                        className="hover:text-red-500 transition-colors bg-black/50 p-2 rounded-lg border border-white/5"
+                                                    ><Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <h2 className="text-xl md:text-2xl font-black italic tracking-tighter uppercase mb-3 group-hover:text-green-500 transition-colors">
@@ -536,8 +653,8 @@ export default function Dashboard() {
                                             </h2>
 
                                             <div className="flex flex-col gap-1 mb-4 border-l-2 border-green-600 pl-3">
-                                                <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                                    🗓️ {formatEventDate(event.event_date)}
+                                                <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                                                    <Calendar size={11} /> {formatEventDate(event.event_date)}
                                                 </p>
                                             </div>
 
@@ -548,8 +665,8 @@ export default function Dashboard() {
                                             <div
                                                 className="pt-6 border-t border-white/5 flex justify-between items-center mt-auto">
                                                 <span
-                                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-green-500/50 group-hover:text-green-500 transition-colors">
-                                                    Szczegóły →
+                                                    className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] text-green-500/50 group-hover:text-green-500 transition-colors flex items-center gap-2">
+                                                    Szczegóły <ArrowRight size={12} />
                                                 </span>
                                                 <span
                                                     className="text-[8px] md:text-[9px] text-gray-700 font-black uppercase tracking-widest">
@@ -587,8 +704,8 @@ export default function Dashboard() {
                                 className={`flex-1 py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-widest transition-all ${activeFriendTab === 'pending' ? 'bg-[#151515] text-white shadow-md' : 'text-gray-500 hover:text-gray-300'} flex items-center justify-center gap-2`}
                             >
                                 Oczekujące
-                                {pendingRequests.length > 0 && <span
-                                    className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[8px]">{pendingRequests.length}</span>}
+                                {(pendingRequests.length + eventInvitations.length) > 0 && <span
+                                    className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[8px]">{pendingRequests.length + eventInvitations.length}</span>}
                             </button>
                         </div>
 
@@ -627,8 +744,8 @@ export default function Dashboard() {
                                                             </div>
                                                         </div>
                                                         <span
-                                                            className="text-[10px] font-black uppercase tracking-widest text-green-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            Zaproś +
+                                                            className="text-[10px] font-black uppercase tracking-widest text-green-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                            Zaproś <UserPlus size={12} />
                                                         </span>
                                                     </div>
                                                 ))}
@@ -660,12 +777,12 @@ export default function Dashboard() {
                                                     </div>
 
                                                     <div
-                                                        className="text-gray-700 group-hover:text-green-500 transition-colors text-[10px]">
+                                                        className="text-gray-700 group-hover:text-green-500 transition-colors text-[10px] flex items-center">
                                                         {friend.is_online ? (
                                                             <span
                                                                 className="text-green-500/50 italic font-black uppercase tracking-tighter">Online</span>
                                                         ) : (
-                                                            "→"
+                                                            <ArrowRight size={14} />
                                                         )}
                                                     </div>
                                                 </div>
@@ -676,31 +793,75 @@ export default function Dashboard() {
                             )}
 
                             {activeFriendTab === 'pending' && (
-                                <div className="space-y-3 pb-4">
-                                    {pendingRequests.length === 0 ? (
-                                        <p className="text-gray-600 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-10">Brak
-                                            oczekujących zaproszeń</p>
-                                    ) : (
-                                        pendingRequests.map(req => (
-                                            <div key={req.friendship_id}
-                                                 className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex flex-col gap-3">
-                                                <div className="flex items-center gap-3">
-                                                    {renderAvatar(req.user.profile_image, req.user.username, "w-8 h-8")}
-                                                    <div>
-                                                        <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{req.user.username}</p>
-                                                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600">chce
-                                                            dołączyć do znajomych</p>
+                                <div className="space-y-6 pb-4">
+                                    <div className="space-y-3">
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-gray-600">Znajomi</p>
+                                        {pendingRequests.length === 0 ? (
+                                            <p className="text-gray-700 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest py-4">
+                                                Brak zaproszeń do znajomych
+                                            </p>
+                                        ) : (
+                                            pendingRequests.map(req => (
+                                                <div key={req.friendship_id}
+                                                     className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex flex-col gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {renderAvatar(req.user.profile_image, req.user.username, "w-8 h-8")}
+                                                        <div>
+                                                            <p className="font-bold text-xs md:text-sm text-gray-200 truncate">{req.user.username}</p>
+                                                            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600">chce
+                                                                dołączyć do znajomych</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleAcceptRequest(req.friendship_id)}
+                                                        className="w-full bg-white hover:bg-gray-200 text-black font-black uppercase text-[8px] md:text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-lg"
+                                                    >
+                                                        Akceptuj
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-gray-600">Wyjazdy</p>
+                                        {eventInvitations.length === 0 ? (
+                                            <p className="text-gray-700 text-center text-[9px] md:text-[10px] font-black uppercase tracking-widest py-4">
+                                                Brak zaproszeń do wyjazdów
+                                            </p>
+                                        ) : (
+                                            eventInvitations.map(inv => (
+                                                <div key={inv.id}
+                                                     className="bg-black p-4 rounded-xl md:rounded-2xl border border-white/5 flex flex-col gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {renderAvatar(inv.inviter.profile_image, inv.inviter.username, "w-8 h-8")}
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-xs md:text-sm text-gray-200 truncate">
+                                                                {inv.inviter.username}
+                                                            </p>
+                                                            <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-600 truncate">
+                                                                zaprasza do „{inv.event.title}”
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleAcceptEventInvitation(inv.id)}
+                                                            className="flex-1 bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[8px] md:text-[9px] tracking-widest px-3 py-3 rounded-xl transition-all flex items-center justify-center gap-1"
+                                                        >
+                                                            <Check size={12} /> Akceptuj
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeclineEventInvitation(inv.id)}
+                                                            className="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-black uppercase text-[8px] md:text-[9px] tracking-widest px-3 py-3 rounded-xl transition-all flex items-center justify-center gap-1"
+                                                        >
+                                                            <X size={12} /> Odrzuć
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleAcceptRequest(req.friendship_id)}
-                                                    className="w-full bg-white hover:bg-gray-200 text-black font-black uppercase text-[8px] md:text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-lg"
-                                                >
-                                                    Akceptuj
-                                                </button>
-                                            </div>
-                                        ))
-                                    )}
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -715,7 +876,8 @@ export default function Dashboard() {
                     <div
                         className="bg-[#0f0f0f] rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 w-full max-w-lg border border-white/10 shadow-2xl relative">
                         <button onClick={() => setIsModalOpen(false)}
-                                className="absolute top-4 md:top-6 right-6 md:right-8 text-gray-500 hover:text-white font-bold text-xl">✕
+                                className="absolute top-4 md:top-6 right-6 md:right-8 text-gray-500 hover:text-white transition-colors">
+                            <X size={20} />
                         </button>
                         <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter uppercase text-center mb-6 md:mb-8">
                             {editingEvent ? "Edytuj " : "Nowy "}<span className="text-green-500">Projekt.</span>
@@ -753,7 +915,9 @@ export default function Dashboard() {
                                         className="w-full bg-black border border-white/5 rounded-xl md:rounded-2xl px-5 py-3 md:px-6 md:py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs md:text-sm text-gray-200 cursor-pointer"
                                     />
                                     <span
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs z-10">🗓️</span>
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 z-10 text-gray-400">
+                                        <Calendar size={14} />
+                                    </span>
                                 </div>
                             </div>
 
@@ -786,9 +950,19 @@ export default function Dashboard() {
                     <div
                         className="bg-[#0f0f0f] rounded-[2rem] p-6 w-full max-w-sm border border-white/10 shadow-2xl mt-16 md:mt-20 relative animate-in slide-in-from-right-8 fade-in">
                         <button onClick={() => setIsNotifOpen(false)}
-                                className="absolute top-6 right-6 text-gray-500 hover:text-white font-bold">✕
+                                className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors">
+                            <X size={18} />
                         </button>
-                        <h3 className="text-lg md:text-xl font-black italic tracking-tighter uppercase mb-6 border-b border-white/5 pb-4">Aktualności</h3>
+                        <h3 className="text-lg md:text-xl font-black italic tracking-tighter uppercase mb-4 border-b border-white/5 pb-4">Aktualności</h3>
+
+                        {notifications.length > 0 && (
+                            <button
+                                onClick={handleClearAllNotifs}
+                                className="w-full mb-4 flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl border border-red-500/20 transition-all"
+                            >
+                                <Trash2 size={14} /> Wyczyść wszystkie
+                            </button>
+                        )}
 
                         <div className="max-h-[60vh] overflow-y-auto space-y-3 custom-scrollbar">
                             {notifications.length === 0 ? (
@@ -807,9 +981,9 @@ export default function Dashboard() {
                                             {!notif.is_read && (
                                                 <button
                                                     onClick={() => handleMarkAsRead(notif.id)}
-                                                    className="text-[8px] font-black uppercase tracking-widest text-green-500 hover:text-green-400"
+                                                    className="text-[8px] font-black uppercase tracking-widest text-green-500 hover:text-green-400 flex items-center gap-1"
                                                 >
-                                                    ✓ Zrozumiałem
+                                                    <Check size={11} /> Zrozumiałem
                                                 </button>
                                             )}
                                         </div>
@@ -859,12 +1033,20 @@ export default function Dashboard() {
                                 </p>
                             </div>
 
-                            <button
-                                onClick={() => setSelectedFriend(null)}
-                                className="w-full py-4 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-green-500 transition-all"
-                            >
-                                Zamknij
-                            </button>
+                            <div className="w-full flex flex-col sm:flex-row gap-2">
+                                <button
+                                    onClick={() => handleRemoveFriend(selectedFriend.id)}
+                                    className="flex-1 py-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-black uppercase text-[10px] tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
+                                >
+                                    <UserMinus size={14} /> Usuń znajomego
+                                </button>
+                                <button
+                                    onClick={() => setSelectedFriend(null)}
+                                    className="flex-1 py-4 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-green-500 transition-all"
+                                >
+                                    Zamknij
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -887,9 +1069,9 @@ export default function Dashboard() {
                             </div>
                             <button
                                 onClick={() => setIsGlobalMapOpen(false)}
-                                className="bg-white/5 hover:bg-red-500/20 hover:text-red-500 text-white w-12 h-12 rounded-2xl transition-all font-black"
+                                className="bg-white/5 hover:bg-red-500/20 hover:text-red-500 text-white w-12 h-12 rounded-2xl transition-all flex items-center justify-center"
                             >
-                                ✕
+                                <X size={18} />
                             </button>
                         </div>
 

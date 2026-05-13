@@ -19,6 +19,8 @@ import os
 from fastapi import UploadFile, File, Form
 from app.api.websocket import manager
 from app.models.friendship import Friendship
+from app.crud.expense import calculate_global_finance_summary
+from app.schemas.expense import GlobalFinanceSummaryResponse
 
 router = APIRouter(
     prefix="/api/users",
@@ -147,3 +149,12 @@ async def update_user_profile(
     )
 
     return current_user
+
+
+@router.get("/me/finances/summary", response_model=GlobalFinanceSummaryResponse)
+def read_global_finance_summary(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Sumuje długi i należności użytkownika ze wszystkich eventów."""
+    return calculate_global_finance_summary(db, current_user.id)
