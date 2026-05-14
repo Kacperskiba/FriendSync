@@ -2,7 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(python -c ' *)",
-      "Bash(grep -rohE 'rgba\\\\\\([0-9]+,[0-9]+,[0-9]+,[0-9.]+\\\\\\)|#[0-9a-fA-F]{6}|\\(34,197,94|22,163,74\\)' C:/Users/Sulik/Desktop/studia/sem6/FriendSync/frontend/srcs --include='*.jsx' --include='*.js')"
+      "Bash(grep -rohE 'rgba\\\\\\([0-9]+,[0-9]+,[0-9]+,[0-9.]+\\\\\\)|#[0-9a-fA-F]{6}|\\(34,197,94|22,163,74\\)' C:/Users/Sulik/Desktop/studia/sem6/FriendSync/frontend/src --include='*.jsx' --include='*.js')"
     ]
   }
 }
