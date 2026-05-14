@@ -21,3 +21,4 @@ Thumbs.db
 # Media / Uploads
 backend/static/avatars/*
 !backend/static/avatars/.gitkeep
+/.claude/
