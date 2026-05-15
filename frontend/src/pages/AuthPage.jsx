@@ -40,6 +40,17 @@ export default function AuthPage() {
       return;
     }
 
+    // Soft-walidacja po stronie klienta — backend i tak waliduje twardo.
+    if (!isLogin) {
+      const pw = formData.password || '';
+      const classes = (/[a-z]/.test(pw) ? 1 : 0) + (/[A-Z]/.test(pw) ? 1 : 0)
+                    + (/\d/.test(pw) ? 1 : 0) + (/[^A-Za-z0-9]/.test(pw) ? 1 : 0);
+      if (pw.length < 10 || classes < 3) {
+        alert("Hasło musi mieć min. 10 znaków i zawierać co najmniej 3 z 4: małą literę, dużą literę, cyfrę, znak specjalny.");
+        return;
+      }
+    }
+
     try {
       if (isLogin) {
         const params = new URLSearchParams();
@@ -116,7 +127,7 @@ export default function AuthPage() {
 
           <div>
             <label className="text-[9px] font-black uppercase text-gray-500 ml-2 mb-1 block italic">Hasło</label>
-            <input name="password" type="password" required className="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm" onChange={handleChange} />
+            <input name="password" type="password" required autoComplete={isLogin ? "current-password" : "new-password"} minLength={isLogin ? undefined : 10} className="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm" onChange={handleChange} />
           </div>
 
           {!isLogin && (

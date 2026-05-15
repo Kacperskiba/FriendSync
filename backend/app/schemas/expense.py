@@ -9,6 +9,8 @@ class ExpenseShareCreate(BaseModel):
 
 class ExpenseShareResponse(ExpenseShareCreate):
     id: int
+    is_settled: bool = False
+    settled_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- GŁÓWNY WYDATEK (Kto założył pieniądze) ---

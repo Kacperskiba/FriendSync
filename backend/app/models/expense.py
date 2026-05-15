@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -26,6 +26,9 @@ class ExpenseShare(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     # Ile konkretnie ta osoba jest winna z tego rachunku
     amount = Column(Float, nullable=False)
+    # Czy ten konkretny udział został już spłacony (flag-based settlement).
+    is_settled = Column(Boolean, nullable=False, server_default="false", default=False)
+    settled_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relacje
     expense = relationship("Expense", back_populates="shares")

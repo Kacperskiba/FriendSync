@@ -15,6 +15,7 @@ export default function EditProfilePage() {
         confirmEmail: '',
         bio: '',
         tags: '',
+        currentPassword: '',
         password: '',
         confirmPassword: ''
     });
@@ -77,6 +78,16 @@ export default function EditProfilePage() {
         formData.append('username', profileData.username);
         formData.append('bio', profileData.bio);
         formData.append('tags', profileData.tags);
+
+        // Backend wymaga potwierdzenia obecnym hasłem dla zmiany emaila/hasła
+        const sensitiveChange = !!profileData.email || !!profileData.password;
+        if (sensitiveChange) {
+            if (!profileData.currentPassword) {
+                alert("Wpisz obecne hasło, aby zmienić email lub hasło.");
+                return;
+            }
+            formData.append('current_password', profileData.currentPassword);
+        }
 
         // Dodajemy email tylko jeśli użytkownik coś wpisał
         if (profileData.email) {
@@ -227,6 +238,18 @@ export default function EditProfilePage() {
                                     onChange={(e) => setProfileData({...profileData, confirmEmail: e.target.value})}
                                 />
                             </div>
+                        </div>
+
+                        {/* Obecne hasło — wymagane do zmiany emaila/hasła */}
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-black uppercase text-gray-600 ml-2">Obecne hasło (wymagane do zmiany emaila/hasła)</label>
+                            <input
+                                type="password" placeholder="••••••••"
+                                autoComplete="current-password"
+                                className="w-full bg-black border border-white/5 rounded-xl px-5 py-3 text-[11px] outline-none focus:border-green-500/50 transition-all"
+                                value={profileData.currentPassword}
+                                onChange={(e) => setProfileData({...profileData, currentPassword: e.target.value})}
+                            />
                         </div>
 
                         {/* Hasło */}

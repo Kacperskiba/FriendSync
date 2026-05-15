@@ -13,7 +13,13 @@ from app.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
 from app.crud.message import create_message, get_event_messages
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, FinanceSummaryResponse
-from app.crud.expense import create_expense, get_event_expenses, calculate_finance_summary
+from app.crud.expense import (
+    create_expense,
+    get_event_expenses,
+    calculate_finance_summary,
+    settle_share,
+    settle_all_with_creditor,
+)
 from app.api.websocket import manager
 from app.schemas.event import SubEventCreate, SubEventResponse
 from app.crud.event import create_sub_event
@@ -277,16 +283,12 @@ async def add_event_expense(
         current_user: User = Depends(get_current_user)
 ):
     """Dodaje nowy wydatek i dzieli go na uczestników."""
-    # 1. Sprawdzamy, czy użytkownik ma dostęp do wydarzenia
     participant = get_participant(db, event_id=event_id, user_id=current_user.id)
     if not participant:
         raise HTTPException(status_code=403, detail="Nie masz dostępu do tego wydarzenia.")
 
-    # Małe zabezpieczenie: Sprawdzamy czy suma długów nie przekracza kwoty paragonu
-    total_shares = sum(share.amount for share in expense.shares)
-    if total_shares > expense.amount:
-        raise HTTPException(status_code=400, detail="Suma długów jest większa niż całkowita kwota wydatku!")
-
+    # Twarda walidacja (suma shares == amount, uczestnictwo, dodatnie kwoty, brak duplikatów,
+    # spłata ≤ aktualny dług) jest wewnątrz create_expense.
     new_expense = create_expense(db=db, event_id=event_id, payer_id=current_user.id, expense_data=expense)
 
     await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
@@ -307,6 +309,34 @@ def read_event_expenses(
 
     return get_event_expenses(db=db, event_id=event_id)
 
+
+
+# --- FINANSE: SPŁATA POJEDYNCZEGO UDZIAŁU ---
+@router.post("/{event_id}/shares/{share_id}/settle", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
+async def settle_single_share(
+        event_id: int,
+        share_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Oznacza pojedynczy zakup jako spłacony — tworzy wpis audytowy w logu spłat."""
+    audit = settle_share(db=db, event_id=event_id, share_id=share_id, user_id=current_user.id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
+    return audit
+
+
+# --- FINANSE: SPŁATA WSZYSTKICH DŁUGÓW WOBEC KONKRETNEGO WIERZYCIELA ---
+@router.post("/{event_id}/creditors/{creditor_id}/settle-all", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
+async def settle_all_with_user(
+        event_id: int,
+        creditor_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Spłaca wszystkie otwarte długi zalogowanego usera wobec wskazanej osoby (zbiorczy wpis)."""
+    audit = settle_all_with_creditor(db=db, event_id=event_id, user_id=current_user.id, creditor_id=creditor_id)
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
+    return audit
 
 
 @router.get("/{event_id}/finances/summary", response_model=FinanceSummaryResponse)
