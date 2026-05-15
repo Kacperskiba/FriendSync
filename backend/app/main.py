@@ -12,6 +12,7 @@ from app.api import notification_routes
 from fastapi.staticfiles import StaticFiles
 from app.api import websocket
 from app.models.sub_event import SubEvent
+from app.core.config import settings
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
