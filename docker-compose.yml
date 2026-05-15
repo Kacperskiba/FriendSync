@@ -12,8 +12,6 @@ services:
   backend:
     build: ./backend
     restart: always
-    ports:
-      - "8000:8000"
     environment:
       DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/friendsync
       SECRET_KEY: ${SECRET_KEY}
@@ -29,9 +27,22 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL}
     restart: always
+
+  caddy:
+    image: caddy:alpine
+    restart: always
     ports:
       - "80:80"
+      - "443:443"
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    depends_on:
+      - backend
+      - frontend
 
 volumes:
   postgres_data:
   backend_static:
+  caddy_data:

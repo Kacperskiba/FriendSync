@@ -39,7 +39,8 @@ _run_lightweight_migrations()
 app = FastAPI(
     title="FriendSync API",
     description="API dla aplikacji do planowania spotkań i rozliczeń ze znajomymi",
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False
 )
 
 # --- KLUCZOWY ELEMENT DLA ZDJĘĆ ---
