@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # Tryb pracy: "development" lub "production".
     # W produkcji wymuszamy ustawione, silne SECRET_KEY (>=32 znaki) — inaczej app się nie wystartuje.
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
 
     ALGORITHM: str = "HS256"
     # Krótki access token zmniejsza skutki kradzieży tokena.
