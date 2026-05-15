@@ -2,7 +2,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Nazwa projektu
     PROJECT_NAME: str = "FriendSync API"
 
     ALGORITHM: str = "HS256"
@@ -11,6 +10,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "12345"
 
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/friendsync"
+
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

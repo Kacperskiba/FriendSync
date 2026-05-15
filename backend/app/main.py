@@ -31,11 +31,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # ----------------------------------
 
 # Konfiguracja CORS
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://friend-synnc.vercel.app",
-]
+origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
