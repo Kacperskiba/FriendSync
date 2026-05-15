@@ -20,6 +20,7 @@ from app.crud.expense import (
     settle_share,
     settle_all_with_creditor,
 )
+from app.models.expense import Expense, ExpenseShare
 from app.api.websocket import manager
 from app.schemas.event import SubEventCreate, SubEventResponse
 from app.crud.event import create_sub_event
@@ -428,6 +429,33 @@ async def remove_participant(event_id: int, user_id: int, db: Session = Depends(
     # Tylko organizator wyrzuca innych, ale każdy wyrzuca siebie
     if not is_organizer and current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
+
+    # Sprawdzenie niespłaconych długów
+    unsettled = (
+        db.query(ExpenseShare)
+        .join(Expense, ExpenseShare.expense_id == Expense.id)
+        .filter(
+            Expense.event_id == event_id,
+            ExpenseShare.user_id == user_id,
+            ExpenseShare.is_settled.is_(False),
+            Expense.payer_id != user_id,
+        )
+        .first()
+    )
+    if unsettled:
+        if not is_organizer:
+            raise HTTPException(
+                status_code=400,
+                detail="Nie możesz opuścić wydarzenia z niespłaconymi długami. Rozlicz się przed wyjściem."
+            )
+        # Organizator wyrzuca — powiadom usuwanego o długach
+        create_notification(
+            db=db,
+            user_id=user_id,
+            notif_type="debt_warning",
+            message=f"Zostałeś usunięty z wydarzenia „{db_event.title}" przez organizatora. Masz niespłacone długi w tym wydarzeniu."
+        )
+        await manager.send_to_user(user_id, {"type": "debt_warning"})
 
     participant = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
