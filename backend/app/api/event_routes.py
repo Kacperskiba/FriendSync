@@ -453,7 +453,7 @@ async def remove_participant(event_id: int, user_id: int, db: Session = Depends(
             db=db,
             user_id=user_id,
             notif_type="debt_warning",
-            message=f"Zostałeś usunięty z wydarzenia „{db_event.title}" przez organizatora. Masz niespłacone długi w tym wydarzeniu."
+            message=f"Zostales usuniety z wydarzenia '{db_event.title}' przez organizatora. Masz niespłacone długi w tym wydarzeniu."
         )
         await manager.send_to_user(user_id, {"type": "debt_warning"})
 
