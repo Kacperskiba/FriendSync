@@ -1,0 +1,7 @@
+friendsync.me {
+    reverse_proxy frontend:80
+}
+
+friendsync.me:8443 {
+    reverse_proxy backend:8000
+}
