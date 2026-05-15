@@ -34,7 +34,7 @@ class EventInvite(BaseModel):
 router = APIRouter(prefix="/api/events", tags=["Events"])
 
 
-@router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 def create_new_event(
         event: EventCreate,
         db: Session = Depends(get_db),
@@ -49,7 +49,7 @@ def create_new_event(
     return create_event(db=db, event=event, user_id=current_user.id)
 
 
-@router.get("/", response_model=List[EventResponse])
+@router.get("", response_model=List[EventResponse])
 def read_user_events(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)  # BRAMKARZ pilnuje dostępu!
