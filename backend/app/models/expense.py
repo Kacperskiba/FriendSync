@@ -16,7 +16,7 @@ class Expense(Base):
     # Relacje
     event = relationship("Event", back_populates="expenses")
     payer = relationship("User", back_populates="payments")
-    shares = relationship("ExpenseShare", back_populates="expense")
+    shares = relationship("ExpenseShare", back_populates="expense", cascade="all, delete-orphan")
 
 class ExpenseShare(Base):
     __tablename__ = "expense_shares"
