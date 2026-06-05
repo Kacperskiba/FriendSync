@@ -31,10 +31,33 @@ export const prefStorage = {
     },
 };
 
+// Zmienne CSS ustawiane inline tylko dla koloru niestandardowego.
+const CUSTOM_ACCENT_VARS = ['--accent', '--accent-dark', '--accent-deep', '--accent-soft'];
+
+// Stosuje akcent: preset (green/blue/purple/orange) albo 'custom' z dowolnym hex.
+// Dla presetów zmienne pochodzą z index.css; dla 'custom' wyliczamy je z hex.
+export function applyAccent(accent, customHex) {
+    const root = document.documentElement;
+    // Wyczyść ewentualne inline-zmienne z poprzedniego trybu 'custom',
+    // żeby presety (z arkusza) znów zadziałały.
+    CUSTOM_ACCENT_VARS.forEach(v => root.style.removeProperty(v));
+
+    if (accent === 'custom') {
+        const hex = customHex || prefStorage.get('accent_custom') || '#22c55e';
+        root.setAttribute('data-accent', 'custom');
+        root.style.setProperty('--accent', hex);
+        root.style.setProperty('--accent-dark', `color-mix(in srgb, ${hex}, black 18%)`);
+        root.style.setProperty('--accent-deep', `color-mix(in srgb, ${hex}, black 55%)`);
+        root.style.setProperty('--accent-soft', `color-mix(in srgb, ${hex} 15%, transparent)`);
+    } else if (accent && accent !== 'green') {
+        root.setAttribute('data-accent', accent);
+    } else {
+        root.removeAttribute('data-accent');
+    }
+}
+
 export function applyAppearancePrefs() {
-    const accent = prefStorage.get('accent_color') || 'green';
-    if (accent === 'green') document.documentElement.removeAttribute('data-accent');
-    else document.documentElement.setAttribute('data-accent', accent);
+    applyAccent(prefStorage.get('accent_color') || 'green', prefStorage.get('accent_custom'));
 
     const reduce = prefStorage.get('reduce_motion') === '1';
     if (reduce) document.documentElement.setAttribute('data-reduce-motion', '');

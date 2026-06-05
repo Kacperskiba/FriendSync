@@ -11,5 +11,11 @@ class SubEvent(Base):
     description = Column(Text, nullable=True)
     start_time = Column(DateTime, nullable=True)
 
+    # Opcjonalne podpięcie punktu z mapy wyjazdu. SET NULL — gdy lokalizacja
+    # zostanie usunięta, podpunkt po prostu traci powiązanie (nie znika).
+    location_id = Column(Integer, ForeignKey("location_proposals.id", ondelete="SET NULL"), nullable=True)
+
     # Relacja zwrotna do głównego wydarzenia
     event = relationship("Event", back_populates="sub_events")
+    # Powiązany punkt na mapie (jednokierunkowo).
+    location = relationship("LocationProposal")

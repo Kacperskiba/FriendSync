@@ -68,7 +68,8 @@ def create_sub_event(db: Session, event_id: int, sub_event: SubEventCreate):
         event_id=event_id,
         title=sub_event.title,
         description=sub_event.description,
-        start_time=sub_event.start_time
+        start_time=sub_event.start_time,
+        location_id=sub_event.location_id
     )
     db.add(db_sub_event)
     db.commit()

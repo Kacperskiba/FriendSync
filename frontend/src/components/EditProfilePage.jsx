@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../services/api';
 import { ArrowLeft } from 'lucide-react';
+import Navbar from './Navbar';
 
 export default function EditProfilePage() {
     const navigate = useNavigate();
@@ -128,24 +129,28 @@ export default function EditProfilePage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans">
-            <div className="max-w-2xl mx-auto mt-10 relative">
-
-                {/* Efekt tła (Blur) */}
-                <div className="absolute -top-20 -left-20 w-64 h-64 bg-green-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-
+        <>
+            <Navbar>
                 <button
                     onClick={() => navigate('/dashboard')}
-                    className="relative z-10 mb-8 text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 hover:text-green-500 transition-colors flex items-center gap-2"
+                    title="Powrót do pulpitu"
+                    className="bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-3 rounded-xl md:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] border border-white/5 transition-all shadow-lg flex items-center gap-2"
                 >
-                    <ArrowLeft size={14} /> Powrót do Dashboardu
+                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Powrót</span>
                 </button>
+            </Navbar>
+
+            <div className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans">
+                <div className="max-w-2xl mx-auto mt-10 relative">
+
+                    {/* Efekt tła (Blur) */}
+                    <div className="absolute -top-20 -left-20 w-64 h-64 bg-green-500/10 blur-[100px] rounded-full pointer-events-none"></div>
 
                 <h1 className="text-4xl md:text-5xl font-black italic uppercase mb-10 tracking-tighter">
                     Edytuj <span className="text-green-500 font-black">Profil.</span>
                 </h1>
 
-                <form onSubmit={handleSubmit} className="relative z-10 space-y-8 bg-[#0f0f0f] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                <form onSubmit={handleSubmit} className="relative z-10 space-y-6 md:space-y-8 bg-[#0f0f0f] p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5 shadow-2xl">
 
                     {/* SEKCJA: AVATAR */}
                     <div className="flex flex-col sm:flex-row items-center gap-6 mb-10 pb-10 border-b border-white/5">
@@ -286,6 +291,7 @@ export default function EditProfilePage() {
                     </button>
                 </form>
             </div>
-        </div>
+            </div>
+        </>
     );
 }

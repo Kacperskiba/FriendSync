@@ -83,7 +83,7 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 font-sans text-white">
-      <div className="max-w-md w-full bg-[#0f0f0f] rounded-[3rem] p-10 border border-white/5 relative overflow-hidden shadow-2xl">
+      <div className="max-w-md w-full bg-[#0f0f0f] rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-10 border border-white/5 relative overflow-hidden shadow-2xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-black italic tracking-tighter uppercase mb-2">
             Friend<span className="text-green-500">Sync.</span>

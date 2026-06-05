@@ -4,7 +4,9 @@ import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import { useWebSocket } from '../components/WebSocketContext';
 import { useCurrency, SUPPORTED_CURRENCIES } from '../components/CurrencyContext';
-import { prefStorage, notifyUserChanged } from '../services/preferences';
+import Navbar from '../components/Navbar';
+import { useDialog } from '../components/DialogContext';
+import { prefStorage, notifyUserChanged, applyAccent } from '../services/preferences';
 import {
     ArrowLeft, User, Bell, Palette, Globe, Shield, Info, AlertTriangle,
     LogOut, Trash2, Pencil, Check, Volume2, Eye, Sparkles, DollarSign, RefreshCw
@@ -17,10 +19,6 @@ const ACCENT_OPTIONS = [
     { key: 'orange', label: 'Pomarańczowy', hex: '#f97316' },
 ];
 
-function applyAccent(key) {
-    if (key === 'green') document.documentElement.removeAttribute('data-accent');
-    else document.documentElement.setAttribute('data-accent', key);
-}
 function applyReduceMotion(on) {
     if (on) document.documentElement.setAttribute('data-reduce-motion', '');
     else document.documentElement.removeAttribute('data-reduce-motion');
@@ -68,9 +66,11 @@ export default function SettingsPage() {
     const navigate = useNavigate();
     const { disconnect } = useWebSocket();
     const { currency, setCurrency, refreshRates, loadingRates } = useCurrency();
+    const { confirm } = useDialog();
 
     const [me, setMe] = useState(null);
     const [accent, setAccent] = useState(prefStorage.get('accent_color') || 'green');
+    const [customColor, setCustomColor] = useState(prefStorage.get('accent_custom') || '#22c55e');
     const [reduceMotion, setReduceMotion] = useState(prefStorage.get('reduce_motion') === '1');
     const [notifSound, setNotifSound] = useState(prefStorage.get('notif_sound') === '1');
     const [notifAutoMark, setNotifAutoMark] = useState(prefStorage.get('notif_automark') === '1');
@@ -96,8 +96,8 @@ export default function SettingsPage() {
     };
 
     const handleDeleteAccount = async () => {
-        if (!window.confirm("Czy NA PEWNO chcesz USUNĄĆ swoje konto? Operacja jest nieodwracalna.")) return;
-        if (!window.confirm("Ostatnia szansa. Wszystkie Twoje dane (eventy, wydatki, znajomi) zostaną utracone. Kontynuować?")) return;
+        if (!await confirm("Czy NA PEWNO chcesz USUNĄĆ swoje konto? Operacja jest nieodwracalna.", { danger: true, title: 'Usunięcie konta', confirmText: 'Kontynuuj' })) return;
+        if (!await confirm("Ostatnia szansa. Wszystkie Twoje dane (eventy, wydatki, znajomi) zostaną utracone. Kontynuować?", { danger: true, title: 'Ostatnia szansa', confirmText: 'Usuń konto' })) return;
         try {
             await axios.delete(`${API_BASE_URL}/api/users/me`, headers);
             disconnect();
@@ -111,7 +111,7 @@ export default function SettingsPage() {
     };
 
     const handleClearNotifs = async () => {
-        if (!window.confirm("Usunąć wszystkie powiadomienia?")) return;
+        if (!await confirm("Usunąć wszystkie powiadomienia?", { danger: true })) return;
         try {
             await axios.delete(`${API_BASE_URL}/api/notifications`, headers);
             alert("Powiadomienia wyczyszczone.");
@@ -123,16 +123,21 @@ export default function SettingsPage() {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white font-sans p-4 md:p-10">
-            <div className="absolute top-0 left-0 w-1/3 h-1/3 bg-green-500/5 blur-[120px] rounded-full pointer-events-none"></div>
-
-            <div className="max-w-4xl mx-auto relative">
+        <>
+            <Navbar>
                 <button
                     onClick={() => navigate('/dashboard')}
-                    className="mb-8 text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 hover:text-green-500 transition-colors flex items-center gap-2"
+                    title="Powrót do pulpitu"
+                    className="bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-3 rounded-xl md:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] border border-white/5 transition-all shadow-lg flex items-center gap-2"
                 >
-                    <ArrowLeft size={14} /> Powrót do Dashboardu
+                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Powrót</span>
                 </button>
+            </Navbar>
+
+            <div className="min-h-screen bg-[#050505] text-white font-sans p-4 md:p-10">
+                <div className="absolute top-0 left-0 w-1/3 h-1/3 bg-green-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+                <div className="max-w-4xl mx-auto relative">
 
                 <header className="mb-10">
                     <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">
@@ -205,8 +210,8 @@ export default function SettingsPage() {
                     {/* WYGLĄD */}
                     <Section icon={Palette} title="Wygląd">
                         <Row title="Kolor akcentu"
-                             hint="Zmiana koloru wyróżników i kropek statusu">
-                            <div className="flex gap-2">
+                             hint="Gotowe kolory albo własny z palety">
+                            <div className="flex gap-2 items-center">
                                 {ACCENT_OPTIONS.map(opt => (
                                     <button
                                         key={opt.key}
@@ -220,6 +225,29 @@ export default function SettingsPage() {
                                         style={{ backgroundColor: opt.hex }}
                                     />
                                 ))}
+
+                                {/* Własny kolor z palety */}
+                                <label
+                                    title="Własny kolor"
+                                    className={`relative w-9 h-9 rounded-full transition-all border-2 cursor-pointer overflow-hidden ${accent === 'custom' ? 'border-white scale-110' : 'border-white/10 hover:border-white/30'}`}
+                                    style={accent === 'custom'
+                                        ? { backgroundColor: customColor }
+                                        : { background: 'conic-gradient(from 90deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444)' }}
+                                >
+                                    <input
+                                        type="color"
+                                        value={customColor}
+                                        onChange={(e) => {
+                                            const hex = e.target.value;
+                                            setCustomColor(hex);
+                                            setAccent('custom');
+                                            prefStorage.set('accent_custom', hex);
+                                            prefStorage.set('accent_color', 'custom');
+                                            applyAccent('custom', hex);
+                                        }}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    />
+                                </label>
                             </div>
                         </Row>
                         <Row title="Redukcja animacji"
@@ -307,6 +335,7 @@ export default function SettingsPage() {
 
                 </div>
             </div>
-        </div>
+            </div>
+        </>
     );
 }

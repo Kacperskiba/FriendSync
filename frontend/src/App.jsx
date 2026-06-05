@@ -8,6 +8,7 @@ import EditProfilePage from "./components/EditProfilePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
 import { WebSocketProvider } from './components/WebSocketContext';
 import { CurrencyProvider } from './components/CurrencyContext';
+import { DialogProvider } from './components/DialogContext';
 import { applyAppearancePrefs } from './services/preferences';
 
 export default function App() {
@@ -21,14 +22,16 @@ export default function App() {
     return (
         <CurrencyProvider>
             <WebSocketProvider>
-                <Routes>
-                    <Route path="/" element={<AuthPage/>}/>
-                    <Route path="/dashboard" element={<Dashboard/>}/>
-                    <Route path="/events/:id" element={<EventDetails/>}/>
-                    <Route path="/events/:id/finance" element={<EventFinance/>}/>
-                    <Route path="/edit-profile" element={<EditProfilePage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                </Routes>
+                <DialogProvider>
+                    <Routes>
+                        <Route path="/" element={<AuthPage/>}/>
+                        <Route path="/dashboard" element={<Dashboard/>}/>
+                        <Route path="/events/:id" element={<EventDetails/>}/>
+                        <Route path="/events/:id/finance" element={<EventFinance/>}/>
+                        <Route path="/edit-profile" element={<EditProfilePage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                    </Routes>
+                </DialogProvider>
             </WebSocketProvider>
         </CurrencyProvider>
     );

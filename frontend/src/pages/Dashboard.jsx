@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useEffect} from 'react';
 import axios from 'axios';
 import {useNavigate} from 'react-router-dom';
 import EventMapComponent from '../components/GlobalDashboardMap.jsx';
@@ -6,10 +6,12 @@ import { useWebSocket } from '../components/WebSocketContext';
 import { useCurrency } from '../components/CurrencyContext';
 import { notifyUserChanged } from '../services/preferences';
 import {
-    Map, Bell, ChevronDown, Settings, User, LogOut, Pencil, Trash2,
+    Map, Bell, Pencil, Trash2,
     CalendarDays, Calendar, ArrowRight, X, Check, Plus, UserPlus,
     UserMinus, TrendingDown, TrendingUp
 } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import { useDialog } from '../components/DialogContext';
 
 import DatePicker, {registerLocale} from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -30,11 +32,8 @@ export default function Dashboard() {
     const [error, setError] = useState(null);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [newEventData, setNewEventData] = useState({title: '', description: '', event_date: null});
 
-    const [username, setUsername] = useState(localStorage.getItem('username') || 'Użytkownik');
-    const [profileImage, setProfileImage] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
 
     const [notifications, setNotifications] = useState([]);
@@ -53,11 +52,11 @@ export default function Dashboard() {
     const [editingEvent, setEditingEvent] = useState(null);
 
     const navigate = useNavigate();
-    const menuRef = useRef(null);
 
     // Globalny WS z kontekstu – nie zamyka się przy zmianie strony
-    const { connect, disconnect, addListener } = useWebSocket();
+    const { connect, addListener } = useWebSocket();
     const { format: formatMoney } = useCurrency();
+    const { confirm } = useDialog();
 
     const refreshFriends = async (token) => {
         try {
@@ -77,20 +76,11 @@ export default function Dashboard() {
             return;
         }
 
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setIsUserMenuOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-
         const fetchUserProfile = async () => {
             try {
                 const res = await axios.get(`${BASE_URL}/api/users/me`, {
                     headers: {Authorization: `Bearer ${token}`}
                 });
-                setUsername(res.data.username);
-                setProfileImage(res.data.profile_image);
                 setCurrentUserId(res.data.id);
                 localStorage.setItem('username', res.data.username);
             } catch (err) {
@@ -127,8 +117,6 @@ export default function Dashboard() {
         fetchInitialData();
         refreshFinances();
         refreshEventInvitations();
-
-        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [navigate]);
 
     // Gdy znamy userId – nawiąż WS i nasłuchuj wiadomości
@@ -259,16 +247,6 @@ export default function Dashboard() {
         return () => clearTimeout(delayDebounceFn);
     }, [searchQuery]);
 
-    const handleLogout = () => {
-        disconnect(); // zamknij WS → backend ustawi offline
-        setTimeout(() => {
-            localStorage.removeItem('token');
-            localStorage.removeItem('username');
-            notifyUserChanged();
-            navigate('/');
-        }, 300);
-    };
-
     const handleCreateEvent = async (e) => {
         e.preventDefault();
         const token = localStorage.getItem('token');
@@ -302,7 +280,7 @@ export default function Dashboard() {
 
     const handleDeleteEvent = async (e, eventId) => {
         e.stopPropagation();
-        if (!window.confirm("Czy na pewno chcesz usunąć to wydarzenie?")) return;
+        if (!await confirm("Czy na pewno chcesz usunąć to wydarzenie?", { danger: true })) return;
 
         try {
             await axios.delete(`${API_URL}/${eventId}`, {
@@ -407,7 +385,7 @@ export default function Dashboard() {
     };
 
     const handleRemoveFriend = async (friendId) => {
-        if (!window.confirm("Czy na pewno chcesz usunąć tego znajomego?")) return;
+        if (!await confirm("Czy na pewno chcesz usunąć tego znajomego?", { danger: true })) return;
         const token = localStorage.getItem('token');
         try {
             await axios.delete(`${FRIENDS_API}/${friendId}`, {
@@ -421,7 +399,7 @@ export default function Dashboard() {
     };
 
     const handleClearAllNotifs = async () => {
-        if (!window.confirm("Usunąć wszystkie powiadomienia?")) return;
+        if (!await confirm("Usunąć wszystkie powiadomienia?", { danger: true })) return;
         const token = localStorage.getItem('token');
         try {
             await axios.delete(NOTIF_API, { headers: {Authorization: `Bearer ${token}`} });
@@ -467,123 +445,76 @@ export default function Dashboard() {
     };
 
     return (
-        <div
-            className="min-h-screen xl:h-screen bg-[#050505] text-white p-4 sm:p-6 md:p-8 font-sans relative flex flex-col overflow-x-hidden xl:overflow-hidden">
-
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute -top-24 -left-24 w-96 h-96 bg-green-500/5 blur-[120px] rounded-full"></div>
-            </div>
-
-            <div
-                className="relative z-[100] flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 max-w-[1600px] w-full mx-auto shrink-0">
-                <div>
-                    <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase">
-                        Friend <span className="text-green-500 font-black">Sync.</span>
-                    </h1>
-                    <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.4em] text-gray-600 mt-2">Centrum
-                        dowodzenia wyjazdami</p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full lg:w-auto">
-
-                    <div className="flex items-center gap-2">
-                        <div
-                            title="Do zapłaty łącznie"
-                            className="flex items-center gap-2 px-3 py-2 bg-[#0f0f0f] border border-red-500/20 rounded-xl shadow-md"
-                        >
-                            <TrendingDown size={14} className="text-red-500" />
-                            <span className="text-[16px] font-black italic text-red-500 tracking-tight">
+        <>
+            <Navbar>
+                {/* Globalny bilans: suma długów i należności ze wszystkich wyjazdów */}
+                <div className="flex items-center gap-2">
+                    <div
+                        title="Łączna kwota, którą jesteś winien/winna ze wszystkich wyjazdów"
+                        className="flex items-center gap-2.5 px-3 py-1.5 bg-[#0f0f0f] border border-red-500/20 rounded-xl shadow-md"
+                    >
+                        <TrendingDown size={16} className="text-red-500 shrink-0" />
+                        <div className="leading-none">
+                            <p className="text-[7px] font-black uppercase tracking-[0.15em] text-gray-500 mb-0.5">Do zapłaty</p>
+                            <p className="text-[15px] font-black italic text-red-500 tracking-tight">
                                 {formatMoney(financeSummary.total_to_pay)}
-                            </span>
-                        </div>
-                        <div
-                            title="Należy się łącznie"
-                            className="flex items-center gap-2 px-3 py-2 bg-[#0f0f0f] border border-green-500/20 rounded-xl shadow-md"
-                        >
-                            <TrendingUp size={14} className="text-green-500" />
-                            <span className="text-[16px] font-black italic text-green-500 tracking-tight">
-                                {formatMoney(financeSummary.total_to_receive)}
-                            </span>
+                            </p>
                         </div>
                     </div>
-
-                    <button
-                        onClick={() => setIsGlobalMapOpen(true)}
-                        className="bg-[#0f0f0f] hover:bg-[#151515] text-white px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl flex items-center justify-center"
+                    <div
+                        title="Łączna kwota, którą inni są winni Tobie ze wszystkich wyjazdów"
+                        className="flex items-center gap-2.5 px-3 py-1.5 bg-[#0f0f0f] border border-green-500/20 rounded-xl shadow-md"
                     >
-                        <Map size={20} />
-                    </button>
-                    <button
-                        onClick={() => setIsNotifOpen(true)}
-                        className="relative bg-[#0f0f0f] hover:bg-[#151515] text-white px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl flex items-center justify-center"
-                    >
-                        <Bell size={20} />
-                        {unreadCount > 0 && (
-                            <span
-                                className="absolute top-2 right-2 md:right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0f0f0f]"></span>
-                        )}
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            setEditingEvent(null);
-                            setNewEventData({title: '', description: '', event_date: null});
-                            setIsModalOpen(true);
-                        }}
-                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-6 py-4 md:px-8 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-xl shadow-green-900/20 text-center flex items-center justify-center gap-2"
-                    >
-                        <Plus size={14} /> Nowe wydarzenie
-                    </button>
-
-                    <div className="relative w-full sm:w-auto mt-2 sm:mt-0" ref={menuRef}>
-                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                                className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3 bg-[#0f0f0f] border border-white/5 p-2 pr-5 rounded-xl md:rounded-2xl hover:border-white/20 transition-all shadow-xl">
-                            <div className="flex items-center gap-3">
-                                {renderAvatar(profileImage, username, "w-10 h-10", true)}
-                                <span className="text-[10px] font-black uppercase tracking-widest block">
-                                {username}
-                            </span>
-                            </div>
-                            <ChevronDown
-                                size={14}
-                                className={`transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`}
-                            />
-                        </button>
-
-                        {isUserMenuOpen && (
-                            <div
-                                className="absolute right-0 lg:right-0 left-0 lg:left-auto mt-4 w-full sm:w-56 bg-[#0f0f0f] border border-white/10 rounded-2xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden py-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="px-6 py-4 border-b border-white/5 mb-2">
-                                    <p className="text-[8px] font-black uppercase text-gray-600 tracking-[0.2em] mb-1">Zalogowany
-                                        jako</p>
-                                    <p className="text-xs font-black italic text-green-500 truncate">{username}</p>
-                                </div>
-                                <button onClick={() => navigate('/settings')}
-                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3">
-                                    <Settings size={14} /> Ustawienia
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setIsUserMenuOpen(false);
-                                        navigate('/edit-profile');
-                                    }}
-                                    className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-3"
-                                >
-                                    <User size={14} /> Edytuj Profil
-                                </button>
-                                <div className="h-px bg-white/5 my-2 mx-4"></div>
-                                <button onClick={handleLogout}
-                                        className="w-full text-left px-6 py-4 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all flex items-center gap-3">
-                                    <LogOut size={14} /> Wyloguj się
-                                </button>
-                            </div>
-                        )}
+                        <TrendingUp size={16} className="text-green-500 shrink-0" />
+                        <div className="leading-none">
+                            <p className="text-[7px] font-black uppercase tracking-[0.15em] text-gray-500 mb-0.5">Należność</p>
+                            <p className="text-[15px] font-black italic text-green-500 tracking-tight">
+                                {formatMoney(financeSummary.total_to_receive)}
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
+
+                <button
+                    onClick={() => setIsGlobalMapOpen(true)}
+                    title="Globalna mapa wyjazdów"
+                    className="bg-[#0f0f0f] hover:bg-[#151515] text-white px-4 py-3 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl flex items-center justify-center"
+                >
+                    <Map size={20} />
+                </button>
+                <button
+                    onClick={() => setIsNotifOpen(true)}
+                    title="Powiadomienia"
+                    className="relative bg-[#0f0f0f] hover:bg-[#151515] text-white px-4 py-3 rounded-xl md:rounded-2xl transition-all border border-white/5 shadow-xl flex items-center justify-center"
+                >
+                    <Bell size={20} />
+                    {unreadCount > 0 && (
+                        <span
+                            className="absolute top-2 right-2 md:right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0f0f0f]"></span>
+                    )}
+                </button>
+
+                <button
+                    onClick={() => {
+                        setEditingEvent(null);
+                        setNewEventData({title: '', description: '', event_date: null});
+                        setIsModalOpen(true);
+                    }}
+                    className="bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[9px] md:text-[10px] tracking-widest px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl transition-all shadow-xl shadow-green-900/20 text-center flex items-center justify-center gap-2"
+                >
+                    <Plus size={16} /> <span className="hidden sm:inline">Nowe wydarzenie</span>
+                </button>
+            </Navbar>
 
             <div
-                className="relative z-40 flex-1 flex flex-col xl:flex-row gap-8 lg:gap-10 max-w-[1600px] w-full mx-auto min-h-0">
+                className="min-h-screen xl:min-h-[calc(100vh_-_80px)] xl:h-[calc(100vh_-_80px)] bg-[#050505] text-white p-4 sm:p-6 md:p-8 font-sans relative flex flex-col overflow-x-hidden xl:overflow-hidden">
+
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+                    <div className="absolute -top-24 -left-24 w-96 h-96 bg-green-500/5 blur-[120px] rounded-full"></div>
+                </div>
+
+                <div
+                    className="relative z-40 flex-1 flex flex-col xl:flex-row gap-8 lg:gap-10 max-w-[1600px] w-full mx-auto min-h-0">
 
                 <div className="flex-1 flex flex-col min-w-0 xl:overflow-hidden">
                     <div className="flex-1 xl:overflow-y-auto pr-0 xl:pr-2 pb-6 xl:pb-10 custom-scrollbar">
@@ -1111,6 +1042,7 @@ export default function Dashboard() {
                 .react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::before, .react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::after { border-top-color: #0f0f0f !important; }
             `
             }}/>
-        </div>
+            </div>
+        </>
     );
 }

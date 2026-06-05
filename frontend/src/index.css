@@ -38,6 +38,7 @@ html[data-accent] .text-green-500             { color: var(--accent) !important;
 html[data-accent] .text-green-500\/50         { color: color-mix(in srgb, var(--accent) 50%, transparent) !important; }
 html[data-accent] .hover\:text-green-400:hover { color: color-mix(in srgb, var(--accent), white 20%) !important; }
 html[data-accent] .hover\:text-green-500:hover { color: var(--accent) !important; }
+html[data-accent] .group-hover\:text-green-500:is(:where(.group):hover *) { color: var(--accent) !important; }
 
 html[data-accent] .bg-green-500               { background-color: var(--accent) !important; }
 html[data-accent] .bg-green-500\/10           { background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
@@ -114,4 +115,15 @@ html[data-reduce-motion] *::after {
 
 html[data-accent] .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
+}
+
+/* --- MOBILE: stabilne skalowanie tekstu (iOS nie powiększa na siłę) --- */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Zabezpieczenie przed poziomym przewijaniem z drobnych przepełnień */
+body {
+    overflow-x: hidden;
 }

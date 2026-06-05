@@ -90,7 +90,8 @@ def get_event_participants(
         {
             "id": u.id,
             "username": u.username,
-            "profile_image": u.profile_image  # <-- To musi tu być!
+            "profile_image": u.profile_image,  # <-- To musi tu być!
+            "is_online": manager.is_user_online(u.id)  # status kropki aktywności
         } for u in users
     ]
 

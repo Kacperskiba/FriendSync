@@ -3,10 +3,20 @@ from datetime import datetime
 from typing import Optional, List
 
 
+class SubEventLocation(BaseModel):
+    id: int
+    name: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class SubEventCreate(BaseModel):
     title: str
     description: Optional[str] = None
     start_time: Optional[datetime] = None
+    location_id: Optional[int] = None
 
 
 class SubEventResponse(BaseModel):
@@ -15,6 +25,8 @@ class SubEventResponse(BaseModel):
     title: str
     description: Optional[str]
     start_time: Optional[datetime]
+    location_id: Optional[int] = None
+    location: Optional[SubEventLocation] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,6 +56,7 @@ class SubEventUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     start_time: Optional[datetime] = None
+    location_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
 import { useWebSocket } from './WebSocketContext';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { useDialog } from './DialogContext';
+import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -16,6 +17,17 @@ function ChangeView({ center }) {
     useEffect(() => {
         if (center) map.setView(center, 15);
     }, [center, map]);
+    return null;
+}
+
+// Nasłuch zdarzeń mapy: prawy przycisk myszy = szybkie dodanie punktu.
+function MapEvents({ onAddPoint }) {
+    useMapEvents({
+        contextmenu(e) {
+            e.originalEvent?.preventDefault?.();
+            onAddPoint(e.latlng);
+        },
+    });
     return null;
 }
 
@@ -35,22 +47,24 @@ const getScaledIcon = (votes) => {
     });
 };
 
-export default function EventMapComponent({ eventId }) {
+export default function EventMapComponent({ eventId, focusCoords = null }) {
     const [locations, setLocations] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState(false);
-    const [mapCenter, setMapCenter] = useState([52.2297, 21.0122]);
+    const [mapCenter, setMapCenter] = useState(focusCoords || [52.2297, 21.0122]);
 
     const token = localStorage.getItem('token');
     const { addListener } = useWebSocket();
+    const { confirm } = useDialog();
 
     const fetchLocations = async () => {
         try {
             const res = await axios.get(`${API_BASE_URL}/api/events/${eventId}/locations`);
             setLocations(res.data);
 
-            // Centrujemy na ostatnio dodanej lokalizacji, jeśli istnieją
-            if (res.data.length > 0) {
+            // Centrujemy na ostatnio dodanej lokalizacji — chyba że mamy wskazany
+            // konkretny punkt (focusCoords), wtedy nie nadpisujemy widoku.
+            if (res.data.length > 0 && !focusCoords) {
                 const latest = res.data[res.data.length - 1];
                 setMapCenter([latest.latitude, latest.longitude]);
             }
@@ -60,6 +74,11 @@ export default function EventMapComponent({ eventId }) {
     };
 
     useEffect(() => { if(eventId) fetchLocations(); }, [eventId]);
+
+    // Gdy z zewnątrz wskazano punkt do pokazania — wycentruj mapę na nim.
+    useEffect(() => {
+        if (focusCoords) setMapCenter(focusCoords);
+    }, [focusCoords]);
 
     useEffect(() => {
         if (!eventId) return;
@@ -100,6 +119,43 @@ export default function EventMapComponent({ eventId }) {
         }
     };
 
+    // Prawy przycisk myszy na mapie — dodaje punkt bez wpisywania nazwy.
+    // Nazwę próbujemy ustalić przez reverse-geocoding (Nominatim), z fallbackiem.
+    const handleAddAtPoint = async (latlng) => {
+        const { lat, lng } = latlng;
+        let name = `Punkt (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&accept-language=pl`);
+            const data = await res.json();
+            if (data && data.display_name) {
+                name = data.display_name.split(',').slice(0, 2).join(',').trim();
+            }
+        } catch {
+            // brak nazwy z geokodera — zostaje fallback ze współrzędnymi
+        }
+        try {
+            await axios.post(`${API_BASE_URL}/api/events/${eventId}/locations`,
+                { name, latitude: lat, longitude: lng },
+                { headers: { Authorization: `Bearer ${token}` }}
+            );
+            fetchLocations();
+        } catch (err) {
+            alert("Nie udało się dodać punktu.");
+        }
+    };
+
+    const handleDeleteLocation = async (loc) => {
+        if (!await confirm(`Usunąć punkt „${loc.name}" z mapy?`, { danger: true })) return;
+        try {
+            await axios.delete(`${API_BASE_URL}/api/locations/${loc.id}`,
+                { headers: { Authorization: `Bearer ${token}` }}
+            );
+            fetchLocations();
+        } catch (err) {
+            alert(err.response?.data?.detail || "Nie udało się usunąć punktu.");
+        }
+    };
+
     return (
         <div className="h-full w-full relative bg-black">
 
@@ -122,19 +178,19 @@ export default function EventMapComponent({ eventId }) {
                         </button>
                     </div>
 
-                    {/* Mały licznik propozycji dla lepszego UX */}
-                    {locations.length > 0 && (
-                        <div className="self-center bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-gray-400">
-                                Propozycje: <span className="text-green-500">{locations.length}</span>
-                            </p>
-                        </div>
-                    )}
+                    {/* Podpowiedź o prawym przycisku myszy + licznik propozycji */}
+                    <div className="self-center bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/5">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-gray-400">
+                            PPM na mapie = szybki punkt
+                            {locations.length > 0 && <> · <span className="text-green-500">{locations.length}</span> {locations.length === 1 ? 'punkt' : 'propozycji'}</>}
+                        </p>
+                    </div>
                 </form>
             </div>
 
             <MapContainer center={mapCenter} zoom={13} className="h-full w-full z-0">
                 <ChangeView center={mapCenter} />
+                <MapEvents onAddPoint={handleAddAtPoint} />
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
                 {locations.map(loc => (
@@ -169,6 +225,13 @@ export default function EventMapComponent({ eventId }) {
                                         </button>
                                     </div>
                                 </div>
+
+                                <button
+                                    onClick={() => handleDeleteLocation(loc)}
+                                    className="w-full mt-3 flex items-center justify-center gap-2 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border border-red-200 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors"
+                                >
+                                    <Trash2 size={12} /> Usuń punkt
+                                </button>
                             </div>
                         </Popup>
                     </Marker>

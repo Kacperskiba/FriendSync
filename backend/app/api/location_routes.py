@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.location import LocationCreate, LocationResponse, VoteCreate
 from app.crud import location as location_crud
+from app.crud.event import get_participant
 from app.models.location import LocationProposal
 
 from app.api.websocket import manager
@@ -31,6 +32,30 @@ async def add_location(
 
     await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
     return new_location
+
+
+# --- USUWANIE LOKALIZACJI ---
+@router.delete("/api/locations/{location_id}")
+async def delete_location(
+    location_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Usuwa punkt z mapy. Dozwolone dla uczestników wydarzenia.
+    Powiązane głosy znikają kaskadowo, a podpunkty tracą powiązanie (SET NULL)."""
+    location = db.query(LocationProposal).filter(LocationProposal.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Punkt nie istnieje.")
+
+    if not get_participant(db, event_id=location.event_id, user_id=current_user.id):
+        raise HTTPException(status_code=403, detail="Brak dostępu do tego wydarzenia.")
+
+    event_id = location.event_id
+    db.delete(location)
+    db.commit()
+
+    await manager.broadcast_to_event(event_id, {"type": "event_updated", "event_id": event_id}, db)
+    return {"message": "Punkt usunięty"}
 
 
 # --- GŁOSOWANIE NA LOKALIZACJĘ ---

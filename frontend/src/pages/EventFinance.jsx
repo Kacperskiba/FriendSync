@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../services/api';
+import Navbar from '../components/Navbar';
 import { useWebSocket } from '../components/WebSocketContext';
 import { useCurrency } from '../components/CurrencyContext';
+import { useDialog } from '../components/DialogContext';
 
 import {
     ArrowLeft, ArrowRight, CheckCircle, Sparkles, Handshake,
@@ -37,6 +39,7 @@ export default function EventFinance() {
 
     const { addListener } = useWebSocket();
     const { format: formatMoney } = useCurrency();
+    const { confirm } = useDialog();
 
     const fetchData = async () => {
         setLoading(true);
@@ -77,7 +80,7 @@ export default function EventFinance() {
 
     // --- SPŁATY ---
     const handleSettleShare = async (shareId, label) => {
-        if (!window.confirm(`Oznaczyć ${label} jako spłacone?`)) return;
+        if (!await confirm(`Oznaczyć ${label} jako spłacone?`, { confirmText: 'Oznacz' })) return;
         try {
             await axios.post(`${API_BASE_URL}/api/events/${id}/shares/${shareId}/settle`, {}, headers);
             fetchData();
@@ -88,7 +91,7 @@ export default function EventFinance() {
 
     const handleSettleAllWith = async (creditorId, total) => {
         const name = getUsername(creditorId);
-        if (!window.confirm(`Spłacić CAŁY dług wobec ${name} (${formatMoney(total)})?`)) return;
+        if (!await confirm(`Spłacić CAŁY dług wobec ${name} (${formatMoney(total)})?`, { confirmText: 'Spłać całość' })) return;
         try {
             await axios.post(`${API_BASE_URL}/api/events/${id}/creditors/${creditorId}/settle-all`, {}, headers);
             fetchData();
@@ -214,43 +217,49 @@ export default function EventFinance() {
     if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-green-500 font-black tracking-tighter animate-pulse uppercase text-xl italic">Synchronizacja portfela...</div>;
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white p-4 md:p-10 font-sans relative">
-            <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-green-500/5 blur-[120px] rounded-full"></div>
-            </div>
+        <>
+            <Navbar>
+                <button
+                    onClick={() => navigate(`/events/${id}`)}
+                    title="Powrót do wydarzenia"
+                    className="bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-3 rounded-xl md:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] border border-white/5 transition-all shadow-lg flex items-center gap-2"
+                >
+                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Powrót</span>
+                </button>
+                <button
+                    onClick={() => {
+                        setSelectedUsers(participants.map(p => p.id));
+                        setIsModalOpen(true);
+                    }}
+                    className="bg-green-600 hover:bg-green-500 text-white px-5 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl shadow-green-900/30 active:scale-95"
+                >
+                    + Dodaj Wydatek
+                </button>
+            </Navbar>
 
-            <div className="max-w-6xl mx-auto relative z-10">
+            <div className="min-h-screen bg-[#050505] text-white p-4 md:p-10 font-sans relative">
+                <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-green-500/5 blur-[120px] rounded-full"></div>
+                </div>
 
-                {/* HEADER */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                    <div>
-                        <button onClick={() => navigate(`/events/${id}`)} className="text-gray-600 hover:text-green-500 mb-4 flex items-center gap-2 transition-all text-[10px] font-black uppercase tracking-[0.3em]">
-                            <ArrowLeft size={14} /> Powrót do wydarzenia
-                        </button>
-                        <h1 className="text-6xl font-black italic tracking-tighter uppercase leading-none">Portfel<span className="text-green-500">.</span></h1>
+                <div className="max-w-6xl mx-auto relative z-10">
+
+                    {/* HEADER */}
+                    <div className="mb-8 md:mb-12">
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black italic tracking-tighter uppercase leading-none">Portfel<span className="text-green-500">.</span></h1>
                         {summary && (
                             <p className="mt-3 text-[10px] font-black uppercase tracking-[0.3em] text-gray-600">
                                 Łączny koszt wydarzenia: <span className="text-white">{formatMoney(summary.total_event_cost)}</span>
                             </p>
                         )}
                     </div>
-                    <button
-                        onClick={() => {
-                            setSelectedUsers(participants.map(p => p.id));
-                            setIsModalOpen(true);
-                        }}
-                        className="bg-green-600 hover:bg-green-500 text-white px-10 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-2xl shadow-green-900/30 active:scale-95"
-                    >
-                        + Dodaj Wydatek
-                    </button>
-                </div>
 
                 {/* DASHBOARD: DŁUGI / NALEŻNOŚCI Z ROZWIJANYMI POZYCJAMI */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-10 md:mb-16">
 
                     {/* DO SPŁATY */}
-                    <div className="bg-[#0f0f0f] border border-red-500/10 rounded-[3rem] p-10 shadow-2xl">
-                        <div className="flex justify-between items-center mb-8">
+                    <div className="bg-[#0f0f0f] border border-red-500/10 rounded-[2rem] md:rounded-[3rem] p-5 sm:p-8 md:p-10 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6 md:mb-8">
                             <h3 className="text-[10px] font-black text-red-500/50 uppercase tracking-[0.4em]">Do spłaty</h3>
                             <span className="bg-red-500/10 text-red-500 text-[9px] px-4 py-1.5 rounded-full font-black italic border border-red-500/20">DEBT</span>
                         </div>
@@ -262,17 +271,17 @@ export default function EventFinance() {
                                         <button
                                             type="button"
                                             onClick={() => setOpenDebts(s => ({ ...s, [group.creditorId]: !expanded }))}
-                                            className="w-full flex justify-between items-center p-6 text-left hover:bg-white/[0.02] transition-all rounded-[2rem]"
+                                            className="w-full flex justify-between items-center gap-3 p-4 sm:p-6 text-left hover:bg-white/[0.02] transition-all rounded-[2rem]"
                                         >
                                             <div className="flex items-center gap-3">
                                                 {expanded ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
                                                 <div>
                                                     <p className="text-[8px] text-gray-700 uppercase font-black mb-1 tracking-widest">Odbiorca:</p>
-                                                    <p className="font-black text-2xl tracking-tighter text-gray-200 italic uppercase">{getUsername(group.creditorId)}</p>
+                                                    <p className="font-black text-lg sm:text-xl md:text-2xl tracking-tighter text-gray-200 italic uppercase break-words">{getUsername(group.creditorId)}</p>
                                                     <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest mt-1">{group.items.length} {group.items.length === 1 ? 'zakup' : 'zakupów'}</p>
                                                 </div>
                                             </div>
-                                            <p className="text-3xl font-black text-red-500 tracking-tighter">-{formatMoney(group.total)}</p>
+                                            <p className="text-xl sm:text-2xl md:text-3xl font-black text-red-500 tracking-tighter shrink-0">-{formatMoney(group.total)}</p>
                                         </button>
 
                                         {expanded && (
@@ -314,8 +323,8 @@ export default function EventFinance() {
                     </div>
 
                     {/* NALEŻNOŚCI */}
-                    <div className="bg-[#0f0f0f] border border-green-500/10 rounded-[3rem] p-10 shadow-2xl">
-                        <div className="flex justify-between items-center mb-8">
+                    <div className="bg-[#0f0f0f] border border-green-500/10 rounded-[2rem] md:rounded-[3rem] p-5 sm:p-8 md:p-10 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6 md:mb-8">
                             <h3 className="text-[10px] font-black text-green-500/50 uppercase tracking-[0.4em]">Należności</h3>
                             <span className="bg-green-500/10 text-green-500 text-[9px] px-4 py-1.5 rounded-full font-black italic border border-green-500/20">CREDIT</span>
                         </div>
@@ -327,17 +336,17 @@ export default function EventFinance() {
                                         <button
                                             type="button"
                                             onClick={() => setOpenCreds(s => ({ ...s, [group.debtorId]: !expanded }))}
-                                            className="w-full flex justify-between items-center p-6 text-left hover:bg-white/[0.02] transition-all rounded-[2rem]"
+                                            className="w-full flex justify-between items-center gap-3 p-4 sm:p-6 text-left hover:bg-white/[0.02] transition-all rounded-[2rem]"
                                         >
                                             <div className="flex items-center gap-3">
                                                 {expanded ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
                                                 <div>
                                                     <p className="text-[8px] text-gray-700 uppercase font-black mb-1 tracking-widest">Dłużnik:</p>
-                                                    <p className="font-black text-2xl tracking-tighter text-gray-200 italic uppercase">{getUsername(group.debtorId)}</p>
+                                                    <p className="font-black text-lg sm:text-xl md:text-2xl tracking-tighter text-gray-200 italic uppercase break-words">{getUsername(group.debtorId)}</p>
                                                     <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest mt-1">{group.items.length} {group.items.length === 1 ? 'zakup' : 'zakupów'}</p>
                                                 </div>
                                             </div>
-                                            <p className="text-3xl font-black text-green-500 tracking-tighter">+{formatMoney(group.total)}</p>
+                                            <p className="text-xl sm:text-2xl md:text-3xl font-black text-green-500 tracking-tighter shrink-0">+{formatMoney(group.total)}</p>
                                         </button>
 
                                         {expanded && (
@@ -366,7 +375,7 @@ export default function EventFinance() {
                 </div>
 
                 {/* HISTORIA OPERACJI */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 px-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 px-0 sm:px-4">
 
                     {/* KOLUMNA: ZAKUPY Z PEŁNYM ROZBICIEM */}
                     <div>
@@ -469,20 +478,20 @@ export default function EventFinance() {
             {/* MODAL: DODAWANIE */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-xl">
-                    <div className="bg-[#0f0f0f] p-12 rounded-[4rem] border border-white/10 w-full max-w-xl shadow-[0_0_100px_rgba(0,0,0,1)] relative overflow-hidden">
+                    <div className="bg-[#0f0f0f] p-6 sm:p-8 md:p-12 rounded-[2.5rem] md:rounded-[4rem] border border-white/10 w-full max-w-xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-[0_0_100px_rgba(0,0,0,1)] relative">
                         <div className="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
-                        <h2 className="text-4xl font-black mb-3 text-center uppercase italic tracking-tighter">Nowy Koszt<span className="text-green-500">.</span></h2>
+                        <h2 className="text-3xl md:text-4xl font-black mb-3 text-center uppercase italic tracking-tighter">Nowy Koszt<span className="text-green-500">.</span></h2>
                         <p className="text-center text-[9px] uppercase tracking-widest text-gray-600 font-bold mb-8">
                             Zaznacz osoby, dla których kupujesz — możesz dla siebie, dla innych, lub dla siebie+innych.
                         </p>
-                        <form onSubmit={handleAddExpense} className="space-y-8">
+                        <form onSubmit={handleAddExpense} className="space-y-6 md:space-y-8">
                             <div>
                                 <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest ml-4 mb-3 block">Opis transakcji</label>
                                 <input
                                     type="text"
                                     placeholder="Np. Restauracja, Paliwo..."
                                     required
-                                    className="w-full bg-black border border-white/5 rounded-2xl px-8 py-5 outline-none focus:border-green-500/50 transition-all font-bold text-gray-200"
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 md:px-8 md:py-5 outline-none focus:border-green-500/50 transition-all font-bold text-gray-200"
                                     value={expenseData.title}
                                     onChange={(e) => setExpenseData({...expenseData, title: e.target.value})}
                                 />
@@ -494,16 +503,16 @@ export default function EventFinance() {
                                     step="0.01"
                                     placeholder="0.00"
                                     required
-                                    className="w-full bg-black border border-white/5 rounded-2xl px-8 py-6 outline-none focus:border-green-500 transition-all font-black text-4xl text-green-500 tracking-tighter"
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-6 py-5 md:px-8 md:py-6 outline-none focus:border-green-500 transition-all font-black text-3xl md:text-4xl text-green-500 tracking-tighter"
                                     value={expenseData.amount}
                                     onChange={(e) => setExpenseData({...expenseData, amount: e.target.value})}
                                 />
                             </div>
                             <div>
                                 <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest ml-4 mb-4 block">Komu kupujesz?</label>
-                                <div className="grid grid-cols-2 gap-3 bg-black/50 p-6 rounded-[2.5rem] border border-white/5 max-h-56 overflow-y-auto">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-black/50 p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5 max-h-56 overflow-y-auto custom-scrollbar">
                                     {participants.map(p => (
-                                        <label key={p.id} className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border-2 ${selectedUsers.includes(p.id) ? 'bg-green-600/10 border-green-600/50' : 'bg-black border-transparent hover:border-white/10'}`}>
+                                        <label key={p.id} className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl cursor-pointer transition-all border-2 ${selectedUsers.includes(p.id) ? 'bg-green-600/10 border-green-600/50' : 'bg-black border-transparent hover:border-white/10'}`}>
                                             <input type="checkbox" className="hidden" checked={selectedUsers.includes(p.id)} onChange={() => toggleUser(p.id)} />
                                             <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${selectedUsers.includes(p.id) ? 'bg-green-600 border-green-600' : 'border-gray-800'}`}>
                                                 {selectedUsers.includes(p.id) && <Check size={12} strokeWidth={4} className="text-white" />}
@@ -520,14 +529,15 @@ export default function EventFinance() {
                                     </p>
                                 )}
                             </div>
-                            <div className="flex gap-4 pt-6">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-6 bg-white/5 hover:bg-white/10 rounded-3xl font-black uppercase text-[11px] tracking-widest transition-all text-gray-500">Anuluj</button>
-                                <button type="submit" className="flex-1 py-6 bg-green-600 hover:bg-green-500 rounded-3xl font-black uppercase text-[11px] tracking-widest shadow-2xl shadow-green-900/40 transition-all active:scale-95">Zapisz wydatki</button>
+                            <div className="flex gap-3 sm:gap-4 pt-2 md:pt-6">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 md:py-6 bg-white/5 hover:bg-white/10 rounded-2xl md:rounded-3xl font-black uppercase text-[11px] tracking-widest transition-all text-gray-500">Anuluj</button>
+                                <button type="submit" className="flex-1 py-4 md:py-6 bg-green-600 hover:bg-green-500 rounded-2xl md:rounded-3xl font-black uppercase text-[11px] tracking-widest shadow-2xl shadow-green-900/40 transition-all active:scale-95">Zapisz wydatki</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </>
     );
 }

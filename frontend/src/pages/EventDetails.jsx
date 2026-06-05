@@ -2,7 +2,9 @@ import React, {useState, useEffect, useRef} from 'react';
 import {useParams, useNavigate} from 'react-router-dom';
 import axios from 'axios';
 import EventMapComponent from '../components/EventMapComponent';
+import Navbar from '../components/Navbar';
 import { useWebSocket } from '../components/WebSocketContext';
+import { useDialog } from '../components/DialogContext';
 
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -12,7 +14,7 @@ import {
     Bell, Map, CalendarDays, Trash2, Pencil, MapPin,
     MessageSquare, Wallet, LogOut, Settings, User,
     Plus, ChevronDown, X, Check, Send, UserMinus, Crown,
-    ArrowLeft
+    ArrowLeft, Maximize2
 } from 'lucide-react';
 import { API_BASE_URL } from '../services/api';
 const API_URL = `${API_BASE_URL}/api/events`;
@@ -30,21 +32,27 @@ export default function EventDetails() {
 
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isMapOpen, setIsMapOpen] = useState(false);
+    // Punkt mapy do wycentrowania po kliknięciu w podpunkt; null = widok domyślny.
+    const [mapFocus, setMapFocus] = useState(null);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
+
+    // Lista punktów z mapy wyjazdu (do podpinania pod podpunkty).
+    const [locations, setLocations] = useState([]);
 
     const [newMessage, setNewMessage] = useState('');
     const [currentUserId, setCurrentUserId] = useState(null);
 
     const [isAddingSubEvent, setIsAddingSubEvent] = useState(false);
     const [editingSubEventId, setEditingSubEventId] = useState(null);
-    const [newSubEvent, setNewSubEvent] = useState({ title: '', description: '', start_time: null });
+    const [newSubEvent, setNewSubEvent] = useState({ title: '', description: '', start_time: null, location_id: null });
 
     const [isEditingEventInfo, setIsEditingEventInfo] = useState(false);
     const [editEventData, setEditEventData] = useState({ title: '', description: '', event_date: null });
 
     const { addListener } = useWebSocket();
+    const { confirm } = useDialog();
 
     const fetchEventData = async () => {
         const token = localStorage.getItem('token');
@@ -54,6 +62,13 @@ export default function EventDetails() {
             if (currentEvent) setEvent(currentEvent);
             else navigate('/dashboard');
         } catch (err) { navigate('/dashboard'); }
+    };
+
+    const fetchLocations = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/${id}/locations`);
+            setLocations(res.data);
+        } catch (err) { console.error("Błąd lokalizacji:", err); }
     };
 
     const fetchParticipants = async () => {
@@ -74,7 +89,7 @@ export default function EventDetails() {
                 : "Czy na pewno chcesz opuścić to wydarzenie?";
         }
 
-        if (!window.confirm(msg)) return;
+        if (!await confirm(msg, { danger: true })) return;
 
         const token = localStorage.getItem('token');
         try {
@@ -88,7 +103,7 @@ export default function EventDetails() {
     };
 
     const handleTransferOwnership = async (newOwnerId) => {
-        if (!window.confirm("Czy na pewno chcesz oddać dowodzenie tej osobie? Staniesz się zwykłym uczestnikiem.")) return;
+        if (!await confirm("Czy na pewno chcesz oddać dowodzenie tej osobie? Staniesz się zwykłym uczestnikiem.", { confirmText: 'Przekaż' })) return;
         const token = localStorage.getItem('token');
         try {
             await axios.put(`${API_URL}/${id}/transfer-ownership/${newOwnerId}`, {}, {
@@ -127,6 +142,7 @@ export default function EventDetails() {
         }
         fetchEventData();
         fetchParticipants();
+        fetchLocations();
     }, [id]);
 
     useEffect(() => { if (isChatOpen) fetchMessages(); }, [isChatOpen]);
@@ -136,6 +152,7 @@ export default function EventDetails() {
             if (msg.event_id !== parseInt(id)) return;
             fetchEventData();
             fetchParticipants();
+            fetchLocations();
             if (isChatOpen) fetchMessages();
         });
         const removeDel = addListener("event_deleted", (msg) => {
@@ -144,6 +161,16 @@ export default function EventDetails() {
         });
         return () => { removeUpd(); removeDel(); };
     }, [id, isChatOpen, addListener, navigate]);
+
+    // Aktualizacja kropek aktywności uczestników na żywo (dla znajomych w ekipie).
+    useEffect(() => {
+        const remove = addListener("user_status", (msg) => {
+            setParticipants(prev => prev.map(p =>
+                p.id === msg.user_id ? { ...p, is_online: msg.is_online } : p
+            ));
+        });
+        return remove;
+    }, [addListener]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({behavior: "smooth"}); }, [messages]);
 
@@ -176,7 +203,8 @@ export default function EventDetails() {
             const payload = {
                 title: newSubEvent.title,
                 description: newSubEvent.description || null,
-                start_time: newSubEvent.start_time ? new Date(newSubEvent.start_time).toISOString() : null
+                start_time: newSubEvent.start_time ? new Date(newSubEvent.start_time).toISOString() : null,
+                location_id: newSubEvent.location_id ? parseInt(newSubEvent.location_id) : null
             };
 
             if (editingSubEventId) {
@@ -185,7 +213,7 @@ export default function EventDetails() {
                 await axios.post(`${API_URL}/${id}/sub-events`, payload, { headers: { Authorization: `Bearer ${token}` } });
             }
 
-            setNewSubEvent({ title: '', description: '', start_time: null });
+            setNewSubEvent({ title: '', description: '', start_time: null, location_id: null });
             setEditingSubEventId(null);
             setIsAddingSubEvent(false);
             fetchEventData();
@@ -193,7 +221,7 @@ export default function EventDetails() {
     };
 
     const handleDeleteSubEvent = async (subEventId) => {
-        if (!window.confirm("Usunąć ten punkt planu?")) return;
+        if (!await confirm("Usunąć ten punkt planu?", { danger: true })) return;
         const token = localStorage.getItem('token');
         try {
             await axios.delete(`${API_URL}/sub-events/${subEventId}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -225,24 +253,31 @@ export default function EventDetails() {
         setIsEditingEventInfo(true);
     };
 
-    const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10") => {
-        if (imageUrl) {
-            return (
-                <img
-                    src={`${BASE_URL}/${imageUrl}`}
-                    alt={name}
-                    className={`${sizeClasses} rounded-xl object-cover border border-white/10`}
-                    onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "";
-                    }}
-                />
-            );
-        }
+    const renderAvatar = (imageUrl, name, sizeClasses = "w-10 h-10", isOnline = null) => {
         return (
-            <div
-                className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg shadow-green-900/40 uppercase text-white shrink-0`}>
-                {name ? name.substring(0, 2) : '?'}
+            <div className="relative shrink-0">
+                {imageUrl ? (
+                    <img
+                        src={`${BASE_URL}/${imageUrl}`}
+                        alt={name}
+                        className={`${sizeClasses} rounded-xl object-cover border border-white/10`}
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "";
+                        }}
+                    />
+                ) : (
+                    <div
+                        className={`${sizeClasses} bg-green-600 rounded-xl flex items-center justify-center text-xs font-black italic shadow-lg shadow-green-900/40 uppercase text-white`}>
+                        {name ? name.substring(0, 2) : '?'}
+                    </div>
+                )}
+                {/* Kropka aktywności pokazywana tylko gdy status jest znany (uczestnicy) */}
+                {isOnline !== null && (
+                    <div
+                        className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-[#0f0f0f] shadow-sm transition-colors duration-500 ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}
+                    ></div>
+                )}
             </div>
         );
     };
@@ -258,21 +293,22 @@ export default function EventDetails() {
     const isOwner = event.creator_id === currentUserId || event.owner_id === currentUserId;
 
     return (
-        // Zmniejszone marginesy (p-4 sm:p-6 md:p-8 zamiast p-12)
-        <div className="min-h-screen bg-[#050505] text-white font-sans p-4 sm:p-6 md:p-8 relative">
-            <div className="fixed top-0 right-0 w-1/2 h-1/2 bg-green-500/5 blur-[120px] rounded-full pointer-events-none"></div>
-
-            {/* NAWIGACJA GÓRNA - max-w-[1600px] */}
-            <div className="max-w-[1600px] w-full mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-8 md:mb-12 gap-6 relative z-10">
-                <button onClick={() => navigate('/dashboard')} className="text-gray-600 hover:text-white flex items-center gap-2 font-black uppercase text-[10px] tracking-[0.3em] transition-all">
-                    <ArrowLeft size={14} /> Powrót
+        <>
+            <Navbar>
+                <button
+                    onClick={() => navigate('/dashboard')}
+                    title="Powrót do pulpitu"
+                    className="bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-3 rounded-xl md:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] border border-white/5 transition-all shadow-lg flex items-center gap-2"
+                >
+                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Powrót</span>
                 </button>
-                <div className="flex gap-4 w-full md:w-auto">
-                    <button onClick={() => setIsMapOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all shadow-lg"><MapPin size={16} /></button>
-                    <button onClick={() => setIsChatOpen(true)} className="flex-1 md:flex-none bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/5 transition-all shadow-lg"><MessageSquare size={16} /></button>
-                    <button onClick={() => navigate(`/events/${id}/finance`)} className="flex-1 md:flex-none bg-green-600 hover:bg-green-500 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-green-900/20 transition-all"><Wallet size={16} /></button>
-                </div>
-            </div>
+                <button onClick={() => setIsChatOpen(true)} title="Czat wydarzenia" className="bg-white/5 hover:bg-white/10 text-white px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl border border-white/5 transition-all shadow-lg flex items-center justify-center"><MessageSquare size={16} /></button>
+                <button onClick={() => navigate(`/events/${id}/finance`)} title="Portfel / finanse" className="bg-white/5 hover:bg-white/10 text-white px-4 py-3 md:px-5 md:py-4 rounded-xl md:rounded-2xl border border-white/5 transition-all shadow-lg flex items-center justify-center"><Wallet size={16} /></button>
+            </Navbar>
+
+            {/* Zmniejszone marginesy (p-4 sm:p-6 md:p-8 zamiast p-12) */}
+            <div className="min-h-screen bg-[#050505] text-white font-sans p-4 sm:p-6 md:p-8 relative">
+                <div className="fixed top-0 right-0 w-1/2 h-1/2 bg-green-500/5 blur-[120px] rounded-full pointer-events-none"></div>
 
             {/* GŁÓWNY GRID ZAMIENIONY NA FLEX (max-w-[1600px]) */}
             <div className="max-w-[1600px] w-full mx-auto flex flex-col xl:flex-row gap-8 lg:gap-10 relative z-10">
@@ -361,7 +397,7 @@ export default function EventDetails() {
                                     setIsAddingSubEvent(!isAddingSubEvent);
                                     if(isAddingSubEvent) {
                                         setEditingSubEventId(null);
-                                        setNewSubEvent({title: '', description: '', start_time: null});
+                                        setNewSubEvent({title: '', description: '', start_time: null, location_id: null});
                                     }
                                 }}
                                 className="w-full sm:w-auto bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl font-black uppercase text-[9px] tracking-widest transition-all shrink-0"
@@ -395,6 +431,29 @@ export default function EventDetails() {
                                     <label className="text-[8px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 block">Notatki (opcjonalnie)</label>
                                     <textarea rows={2} value={newSubEvent.description} onChange={e => setNewSubEvent({...newSubEvent, description: e.target.value})} placeholder="Szczegóły..." className="w-full bg-[#0a0a0a] border border-white/5 rounded-xl px-5 py-3 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 resize-none custom-scrollbar" />
                                 </div>
+                                <div className="mb-4">
+                                    <label className="text-[8px] font-black uppercase tracking-widest text-gray-600 ml-2 mb-2 flex items-center gap-1">
+                                        <MapPin size={10} /> Punkt na mapie (opcjonalnie)
+                                    </label>
+                                    <div className="relative w-full">
+                                        <select
+                                            value={newSubEvent.location_id || ''}
+                                            onChange={e => setNewSubEvent({...newSubEvent, location_id: e.target.value || null})}
+                                            className="w-full appearance-none bg-[#0a0a0a] border border-white/5 rounded-xl px-5 py-3 pr-10 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 cursor-pointer"
+                                        >
+                                            <option value="">— Brak (bez punktu na mapie) —</option>
+                                            {locations.map(loc => (
+                                                <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                            ))}
+                                        </select>
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 z-10"><MapPin size={16} /></span>
+                                    </div>
+                                    {locations.length === 0 && (
+                                        <p className="text-[8px] text-gray-700 font-bold uppercase tracking-widest mt-2 ml-2">
+                                            Najpierw dodaj punkt na mapie wyjazdu, aby móc go podpiąć.
+                                        </p>
+                                    )}
+                                </div>
                                 <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[10px] py-4 rounded-xl transition-all shadow-lg shadow-green-900/20">
                                     {editingSubEventId ? 'Zapisz zmiany' : 'Dodaj do planu'}
                                 </button>
@@ -418,7 +477,8 @@ export default function EventDetails() {
                                                             setNewSubEvent({
                                                                 title: subEvent.title,
                                                                 description: subEvent.description || '',
-                                                                start_time: subEvent.start_time ? new Date(subEvent.start_time) : null
+                                                                start_time: subEvent.start_time ? new Date(subEvent.start_time) : null,
+                                                                location_id: subEvent.location_id || null
                                                             });
                                                             setIsAddingSubEvent(true);
                                                         }}
@@ -433,6 +493,18 @@ export default function EventDetails() {
                                                 <h4 className="text-xl font-bold italic uppercase tracking-tight text-white mb-2 pr-16">{subEvent.title}</h4>
                                                 {subEvent.description && (
                                                     <p className="text-xs font-medium text-gray-400 leading-relaxed">{subEvent.description}</p>
+                                                )}
+                                                {subEvent.location && subEvent.location.latitude != null && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setMapFocus([subEvent.location.latitude, subEvent.location.longitude]);
+                                                            setIsMapOpen(true);
+                                                        }}
+                                                        title="Pokaż ten punkt na mapie wyjazdu"
+                                                        className="mt-3 inline-flex items-center gap-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 rounded-xl px-3 py-2 text-[9px] font-black uppercase tracking-widest transition-all active:scale-95"
+                                                    >
+                                                        <MapPin size={12} /> {subEvent.location.name}
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -488,7 +560,7 @@ export default function EventDetails() {
                             return (
                                 <div key={user.id} className="flex items-center justify-between bg-black p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
                                     <div className="flex items-center gap-4 min-w-0">
-                                        {renderAvatar(user.profile_image, user.username)}
+                                        {renderAvatar(user.profile_image, user.username, "w-10 h-10", !!user.is_online)}
                                         <div>
                                             <span className="block text-[11px] font-black uppercase tracking-tight text-white italic truncate">
                                                 {user.username} {isMe && <span className="text-gray-600 font-medium ml-1">(Ty)</span>}
@@ -544,7 +616,16 @@ export default function EventDetails() {
                         <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
                             <span className="text-[80px] font-black italic uppercase leading-none">MAPA</span>
                         </div>
-                        <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px] mb-6 relative z-10">Lokalizacje</h3>
+                        <div className="flex items-center justify-between gap-3 mb-6 relative z-10">
+                            <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px]">Lokalizacje</h3>
+                            <button
+                                onClick={() => { setMapFocus(null); setIsMapOpen(true); }}
+                                title="Otwórz mapę na pełnym ekranie"
+                                className="bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white px-3 py-2 rounded-xl border border-white/5 transition-all shadow-lg flex items-center gap-2 text-[9px] font-black uppercase tracking-widest shrink-0"
+                            >
+                                <Maximize2 size={14} /> <span className="hidden sm:inline">Pełny ekran</span>
+                            </button>
+                        </div>
                         <div className="flex-1 w-full rounded-2xl overflow-hidden border border-white/10 relative z-10 shadow-inner">
                             <EventMapComponent eventId={id}/>
                         </div>
@@ -564,7 +645,7 @@ export default function EventDetails() {
                             <button onClick={() => setIsMapOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full text-gray-500 hover:text-white transition-all"><X size={16} /></button>
                         </div>
                         <div className="flex-1 relative">
-                            <EventMapComponent eventId={id}/>
+                            <EventMapComponent eventId={id} focusCoords={mapFocus}/>
                         </div>
                     </div>
                 </div>
@@ -572,7 +653,7 @@ export default function EventDetails() {
 
             {/* CZAT */}
             {isChatOpen && (
-                <div className="fixed bottom-8 right-8 w-full max-w-md h-[600px] bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10">
+                <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-8 sm:right-8 w-auto sm:w-full max-w-md h-[75vh] sm:h-[600px] bg-[#0f0f0f] border border-white/10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10">
                     <div className="bg-black p-6 flex justify-between items-center border-b border-white/5">
                         <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-green-500 italic">Czat wydarzenia</h3>
                         <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-white transition-all"><X size={16} /></button>
@@ -621,7 +702,6 @@ export default function EventDetails() {
                 __html: `
                 .leaflet-popup-content-wrapper { border-radius: 1.5rem; padding: 5px; }
                 .leaflet-container { font-family: inherit; background: #050505 !important; height: 100% !important; width: 100% !important; z-index: 1; }
-                .leaflet-tile-container { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
                 
                 .react-datepicker-wrapper { width: 100%; display: block; }
                 .react-datepicker-popper { z-index: 9999 !important; }
@@ -640,6 +720,7 @@ export default function EventDetails() {
                 .react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::before, .react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::after { border-top-color: #0f0f0f !important; }
             `
             }}/>
-        </div>
+            </div>
+        </>
     );
 }

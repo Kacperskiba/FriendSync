@@ -28,6 +28,7 @@ def _run_lightweight_migrations() -> None:
     statements = [
         "ALTER TABLE expense_shares ADD COLUMN IF NOT EXISTS is_settled BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE expense_shares ADD COLUMN IF NOT EXISTS settled_at TIMESTAMP WITH TIME ZONE NULL",
+        "ALTER TABLE sub_events ADD COLUMN IF NOT EXISTS location_id INTEGER NULL REFERENCES location_proposals(id) ON DELETE SET NULL",
     ]
     with engine.begin() as conn:
         for stmt in statements:

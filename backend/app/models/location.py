@@ -22,7 +22,8 @@ class LocationProposal(Base):
     # Relacje
     event = relationship("Event", back_populates="locations")
     creator = relationship("User", back_populates="proposed_locations")
-    votes = relationship("LocationVote", back_populates="location")
+    # Kaskada: usunięcie lokalizacji usuwa też powiązane głosy.
+    votes = relationship("LocationVote", back_populates="location", cascade="all, delete-orphan")
 
 
 class LocationVote(Base):

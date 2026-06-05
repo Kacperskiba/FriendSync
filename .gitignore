@@ -2,10 +2,11 @@
 .idea/
 .vscode/
 
-# Env (commituj tylko .env.example)
+# Env nie commituj
 .env
 .env.local
 .env.*.local
+.env.example
 # Backend
 __pycache__/
 *.py[cod]
