@@ -841,10 +841,8 @@ export default function Dashboard() {
                                     <DatePicker
                                         selected={newEventData.event_date}
                                         onChange={(date) => setNewEventData({...newEventData, event_date: date})}
-                                        showTimeSelect
-                                        timeFormat="HH:mm"
-                                        timeIntervals={15}
-                                        timeCaption="Czas"
+                                        showTimeInput
+                                        timeInputLabel="Godzina:"
                                         dateFormat="d MMMM yyyy, HH:mm"
                                         locale="pl"
                                         placeholderText="Wybierz datę z kalendarza..."

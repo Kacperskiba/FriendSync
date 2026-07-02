@@ -417,7 +417,7 @@ export default function EventDetails() {
                                     <DatePicker
                                         selected={editEventData.event_date}
                                         onChange={(date) => setEditEventData({...editEventData, event_date: date})}
-                                        showTimeSelect timeFormat="HH:mm" timeIntervals={15} timeCaption="Czas" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
+                                        showTimeInput timeInputLabel="Godzina:" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
                                         placeholderText="Wybierz nową datę z kalendarza..."
                                         className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 cursor-pointer"
                                     />
@@ -495,7 +495,7 @@ export default function EventDetails() {
                                             <DatePicker
                                                 selected={newSubEvent.start_time}
                                                 onChange={(date) => setNewSubEvent({...newSubEvent, start_time: date})}
-                                                showTimeSelect timeFormat="HH:mm" timeIntervals={15} timeCaption="Czas" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
+                                                showTimeInput timeInputLabel="Godzina:" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
                                                 placeholderText="Wybierz z kalendarza..."
                                                 className="w-full bg-[#0a0a0a] border border-white/5 rounded-xl px-5 py-3 outline-none focus:border-green-500/50 text-xs font-bold text-gray-200 cursor-pointer"
                                             />
@@ -603,7 +603,7 @@ export default function EventDetails() {
                                 <DatePicker
                                     selected={newProposedDate}
                                     onChange={(date) => setNewProposedDate(date)}
-                                    showTimeSelect timeFormat="HH:mm" timeIntervals={15} timeCaption="Czas" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
+                                    showTimeInput timeInputLabel="Godzina:" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
                                     minDate={new Date()}
                                     placeholderText="Zaproponuj termin..."
                                     className="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs text-gray-200 cursor-pointer"
