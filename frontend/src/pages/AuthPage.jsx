@@ -8,6 +8,8 @@ const API_URL = `${API_BASE_URL}/api/users`;
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotEmailSent, setForgotEmailSent] = useState(false);
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -29,6 +31,16 @@ export default function AuthPage() {
     if (file) {
       setProfileImage(file);
       setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_URL}/forgot-password`, { email: formData.email });
+      setForgotEmailSent(true);
+    } catch (err) {
+      alert("Błąd: " + (err.response?.data?.detail || "Problem z serwerem"));
     }
   };
 
@@ -92,6 +104,42 @@ export default function AuthPage() {
           </h1>
         </div>
 
+        {isForgotPassword ? (
+          <div className="space-y-5">
+            {forgotEmailSent ? (
+              <>
+                <p className="text-center text-xs font-bold text-gray-300 leading-relaxed">
+                  Jeśli konto o podanym adresie istnieje, wysłaliśmy e-mail z linkiem do resetu hasła.
+                  Sprawdź skrzynkę (także spam) — link jest ważny 30 minut.
+                </p>
+                <button
+                  onClick={() => { setIsForgotPassword(false); setForgotEmailSent(false); }}
+                  className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[11px] tracking-widest py-5 rounded-2xl transition-all shadow-lg shadow-green-900/20"
+                >
+                  Wróć do logowania
+                </button>
+              </>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-5">
+                <p className="text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Podaj e-mail konta, a wyślemy link do ustawienia nowego hasła.
+                </p>
+                <div>
+                  <label className="text-[9px] font-black uppercase text-gray-500 ml-2 mb-1 block italic">Email</label>
+                  <input name="email" type="email" required className="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-sm" onChange={handleChange} />
+                </div>
+                <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[11px] tracking-widest py-5 rounded-2xl transition-all shadow-lg shadow-green-900/20">
+                  Wyślij link resetujący
+                </button>
+                <div className="text-center">
+                  <button type="button" onClick={() => setIsForgotPassword(false)} className="text-[9px] font-black uppercase tracking-widest text-gray-600 hover:text-white transition-colors">
+                    Wróć do logowania
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           {!isLogin && (
             <div className="flex flex-col items-center mb-6">
@@ -142,13 +190,24 @@ export default function AuthPage() {
           <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black uppercase text-[11px] tracking-widest py-5 rounded-2xl transition-all shadow-lg shadow-green-900/20">
             {isLogin ? "Zaloguj się" : "Stwórz profil"}
           </button>
-        </form>
 
+          {isLogin && (
+            <div className="text-center">
+              <button type="button" onClick={() => setIsForgotPassword(true)} className="text-[9px] font-black uppercase tracking-widest text-gray-600 hover:text-green-500 transition-colors">
+                Zapomniałeś hasła?
+              </button>
+            </div>
+          )}
+        </form>
+        )}
+
+        {!isForgotPassword && (
         <div className="mt-8 text-center">
           <button onClick={() => setIsLogin(!isLogin)} className="text-[9px] font-black uppercase tracking-widest text-gray-600 hover:text-white transition-colors">
             {isLogin ? "Brak konta? Zarejestruj się" : "Masz konto? Zaloguj się"}
           </button>
         </div>
+        )}
       </div>
     </div>
   );

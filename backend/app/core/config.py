@@ -26,6 +26,17 @@ class Settings(BaseSettings):
     # Limit rozmiaru avatara w bajtach (5 MB).
     MAX_AVATAR_SIZE: int = 5 * 1024 * 1024
 
+    # Publiczny adres frontendu — używany do budowania linków w e-mailach.
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # SMTP do wysyłki e-maili (reset hasła). Pusty SMTP_HOST = tryb dev:
+    # zamiast wysyłki link resetujący jest logowany na stdout backendu.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

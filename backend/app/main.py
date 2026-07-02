@@ -9,7 +9,7 @@ from app.core.database import engine, Base
 from app.api import user_routes
 from app.api import event_routes
 from app.api import location_routes
-from app.models import user, event, expense, location, message, friendship, notification, event_invitation, event_invite_link, date_proposal
+from app.models import user, event, expense, location, message, friendship, notification, event_invitation, event_invite_link, date_proposal, password_reset
 from app.api import friend_routes
 from app.api import date_routes
 from app.api import notification_routes
