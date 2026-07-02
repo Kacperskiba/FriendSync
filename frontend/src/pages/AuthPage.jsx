@@ -59,7 +59,9 @@ export default function AuthPage() {
         const res = await axios.post(`${API_URL}/login`, params);
         localStorage.setItem('token', res.data.access_token);
         notifyUserChanged();
-        navigate('/dashboard');
+        // Jeśli user trafił tu z linku zaproszeniowego — wróć na stronę dołączania.
+        const pendingInvite = sessionStorage.getItem('pending_invite');
+        navigate(pendingInvite ? `/join/${pendingInvite}` : '/dashboard');
       } else {
         // REJESTRACJA JAKO FORMDATA
         const data = new FormData();

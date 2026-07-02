@@ -12,7 +12,9 @@ class Event(Base):
     description = Column(Text, nullable=True)
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    event_date = Column(DateTime, nullable=True)
+    # timezone=True — daty przechowujemy jako timestamptz (UTC); frontend wysyła ISO z 'Z',
+    # a naiwna kolumna gubiła strefę i każda edycja przesuwała godzinę o lokalny offset.
+    event_date = Column(DateTime(timezone=True), nullable=True)
     # Relacje - SPRAWDŹ TE LINIE:
     creator = relationship("User", back_populates="created_events")
 
@@ -22,6 +24,7 @@ class Event(Base):
     locations = relationship("LocationProposal", back_populates="event", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="event", cascade="all, delete-orphan")
     sub_events = relationship("SubEvent", back_populates="event", cascade="all, delete-orphan")
+    date_proposals = relationship("DateProposal", back_populates="event", cascade="all, delete-orphan")
 
 class EventParticipant(Base):
     __tablename__ = "event_participants"

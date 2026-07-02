@@ -1,0 +1,716 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Kodowanie i język ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{lmodern}
+
+% --- Układ strony ---
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+
+% --- Grafika, kolory, tabele ---
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+
+% --- Listingi kodu ---
+\usepackage{listings}
+
+% --- Hiperłącza ---
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!50!black,
+    urlcolor=blue!50!black,
+    pdftitle={Dokumentacja techniczna -- FriendSync},
+    pdfauthor={Kacper Skiba, Adam Młotkowski, Bartosz Sulecki}
+}
+
+% --- Definicje kolorów dla kodu ---
+\definecolor{codebg}{rgb}{0.96,0.96,0.96}
+\definecolor{codekeyword}{rgb}{0.13,0.29,0.53}
+\definecolor{codecomment}{rgb}{0.40,0.55,0.40}
+\definecolor{codestring}{rgb}{0.55,0.30,0.10}
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{codekeyword}\bfseries,
+    commentstyle=\color{codecomment}\itshape,
+    stringstyle=\color{codestring},
+    breaklines=true,
+    showstringspaces=false,
+    frame=single,
+    rulecolor=\color{gray!40},
+    tabsize=2,
+    captionpos=b,
+    columns=fullflexible,
+    literate=%
+        {ą}{{\k{a}}}1 {ć}{{\'c}}1 {ę}{{\k{e}}}1 {ł}{{\l{}}}1 {ń}{{\'n}}1
+        {ó}{{\'o}}1 {ś}{{\'s}}1 {ż}{{\.z}}1 {ź}{{\'z}}1
+        {Ą}{{\k{A}}}1 {Ć}{{\'C}}1 {Ę}{{\k{E}}}1 {Ł}{{\L{}}}1 {Ń}{{\'N}}1
+        {Ó}{{\'O}}1 {Ś}{{\'S}}1 {Ż}{{\.Z}}1 {Ź}{{\'Z}}1
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% --- Zrzuty ekranu: pokaz obrazek jesli istnieje, w przeciwnym razie placeholder ---
+\graphicspath{{screeny/}{screenshots/}}
+\newcommand{\screen}[2]{%
+    \begin{figure}[h!]
+        \centering
+        \IfFileExists{screeny/#1}{%
+            \includegraphics[width=0.85\textwidth,frame]{screeny/#1}%
+        }{%
+            \fbox{\parbox[c][4.5cm][c]{0.82\textwidth}{\centering\itshape
+                Miejsce na zrzut ekranu --- dodaj plik \texttt{screeny/#1}}}%
+        }
+        \caption{#2}
+    \end{figure}
+}
+
+% =====================================================================
+\begin{document}
+
+% --- Strona tytułowa ---
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+
+    {\Huge\bfseries FriendSync\par}
+    \vspace{0.5cm}
+    {\Large Dokumentacja techniczna\par}
+
+    \vspace{1.5cm}
+    \rule{0.7\textwidth}{0.4pt}\par
+    \vspace{0.5cm}
+    {\large Aplikacja webowa do planowania spotkań ze znajomymi\\
+    oraz rozliczania wspólnych wydatków grupowych\par}
+    \vspace{0.5cm}
+    \rule{0.7\textwidth}{0.4pt}\par
+
+    \vfill
+
+    {\large Autor: Kacper Skiba\par}
+    \vspace{0.3cm}
+    {\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Opis projektu}
+
+\textbf{FriendSync} to pełnostackowa aplikacja webowa wspierająca organizację wspólnych
+wyjazdów i spotkań. Użytkownik może:
+
+\begin{itemize}[noitemsep]
+    \item zakładać konto i zarządzać profilem (avatar, bio, tagi),
+    \item budować listę znajomych (zaproszenia, akceptacja, wyszukiwanie),
+    \item tworzyć \emph{wydarzenia} (eventy) i zapraszać do nich znajomych,
+    \item planować szczegóły wyjazdu poprzez \emph{podpunkty} (sub-events) z~harmonogramem,
+    \item \emph{proponować lokalizacje} na mapie i \emph{głosować} na nie,
+    \item prowadzić \emph{czat} wewnątrz wydarzenia,
+    \item ewidencjonować \emph{wspólne wydatki} i automatycznie rozliczać długi
+          z~minimalizacją liczby przelewów,
+    \item otrzymywać \emph{powiadomienia} oraz widzieć \emph{status online} znajomych
+          w~czasie rzeczywistym.
+\end{itemize}
+
+% =====================================================================
+\section{Stos technologiczny}
+
+\subsection{Backend}
+\begin{longtable}{L{4cm} L{9cm}}
+\toprule
+\textbf{Technologia} & \textbf{Zastosowanie} \\
+\midrule
+\endhead
+Python 3.12 & język programowania \\
+FastAPI & framework webowy / REST API + WebSocket \\
+Uvicorn & serwer ASGI \\
+SQLAlchemy & ORM (mapowanie obiektowo-relacyjne) \\
+PostgreSQL 16 & relacyjna baza danych \\
+Pydantic v2 / pydantic-settings & walidacja danych i konfiguracja \\
+PyJWT & tokeny JWT \\
+passlib + bcrypt & hashowanie haseł \\
+python-multipart & upload plików (avatary) \\
+requests & integracja z Nominatim (geokodowanie) \\
+\bottomrule
+\end{longtable}
+
+\subsection{Frontend}
+\begin{longtable}{L{4cm} L{9cm}}
+\toprule
+\textbf{Technologia} & \textbf{Zastosowanie} \\
+\midrule
+\endhead
+React 19 & biblioteka UI \\
+Vite 8 & bundler / dev server \\
+React Router 7 & routing po stronie klienta \\
+Axios & klient HTTP \\
+Tailwind CSS 4 & stylowanie \\
+Leaflet + react-leaflet & mapy (OpenStreetMap) \\
+date-fns / react-datepicker & obsługa dat \\
+lucide-react & ikony \\
+Vitest + Testing Library & testy jednostkowe \\
+\bottomrule
+\end{longtable}
+
+\subsection{Infrastruktura}
+\begin{itemize}[noitemsep]
+    \item \textbf{Docker / Docker Compose} --- konteneryzacja,
+    \item \textbf{Caddy} --- reverse proxy z~automatycznym HTTPS,
+    \item \textbf{Nginx} --- serwowanie statycznego frontendu w~kontenerze.
+\end{itemize}
+
+% =====================================================================
+\section{Architektura systemu}
+
+Aplikacja ma architekturę \textbf{klient--serwer} z~wyraźnym rozdzieleniem na trójwarstwowy
+backend (API $\rightarrow$ logika biznesowa $\rightarrow$ dane) oraz SPA po stronie klienta.
+
+\begin{lstlisting}[language={}]
+                   +---------------------------------------------+
+                   |                  CADDY                      |
+                   |   (reverse proxy, HTTPS, port 80/443)       |
+                   +---------------+--------------+--------------+
+                                   |              |
+                   :80 (HTTPS)     |              |  :8443
+              +--------------------v---+   +------v-------------------+
+              |   FRONTEND (Nginx)     |   |   BACKEND (FastAPI)      |
+              |   React SPA (build)    |   |   REST API + WebSocket   |
+              +------------------------+   +-----------+-------------+
+                                                       |
+                                             +---------v----------+
+                                             |   PostgreSQL 16    |
+                                             +--------------------+
+\end{lstlisting}
+
+\textbf{Komunikacja:}
+\begin{itemize}[noitemsep]
+    \item \textbf{HTTP/REST} --- operacje CRUD (Axios $\rightarrow$ FastAPI),
+    \item \textbf{WebSocket} (\texttt{/ws}) --- powiadomienia, status online, zdarzenia
+          czasu rzeczywistego,
+    \item \textbf{Nominatim (OpenStreetMap)} --- zewnętrzne API do zamiany adresu na
+          współrzędne.
+\end{itemize}
+
+% =====================================================================
+\section{Struktura repozytorium}
+
+\begin{lstlisting}[language={}]
+FriendSync/
+|-- docker-compose.yml      # orkiestracja uslug (db, backend, frontend, caddy)
+|-- Caddyfile               # konfiguracja reverse proxy + HTTPS
+|-- README.md
+|
+|-- backend/
+|   |-- Dockerfile
+|   |-- requirements.txt
+|   |-- pytest.ini
+|   `-- app/
+|       |-- main.py         # punkt wejscia, middleware, montaz routerow
+|       |-- core/           # konfiguracja, baza, bezpieczenstwo, uploady
+|       |-- models/         # modele ORM (SQLAlchemy)
+|       |-- schemas/        # schematy Pydantic (walidacja I/O)
+|       |-- crud/           # logika dostepu do danych / operacje biznesowe
+|       |-- api/            # routery (endpointy REST + WebSocket)
+|       |-- services/       # integracje zewnetrzne (geocoding)
+|       `-- tests/          # testy pytest
+|
+`-- frontend/
+    |-- Dockerfile
+    |-- nginx.conf
+    |-- vite.config.js
+    `-- src/
+        |-- App.jsx         # routing aplikacji
+        |-- pages/          # widoki (AuthPage, Dashboard, EventDetails, ...)
+        |-- components/     # komponenty wspoldzielone + Contexty
+        `-- services/       # klient API, autoryzacja, preferencje
+\end{lstlisting}
+
+% =====================================================================
+\section{Model danych}
+
+System opiera się na relacyjnym modelu danych (katalog \texttt{backend/app/models/}).
+
+\subsection{Diagram relacji (uproszczony)}
+
+\begin{lstlisting}[language={}]
+User  --<  Event (creator)
+User  --<  EventParticipant  >--  Event
+User  --<  Friendship  >--  User            (status: pending / accepted)
+User  --<  EventInvitation  >--  Event      (status: pending / accepted / declined)
+Event --<  SubEvent  >--  LocationProposal  (opcjonalnie)
+Event --<  LocationProposal  --<  LocationVote  >--  User
+Event --<  Message  >--  User (author)
+Event --<  Expense (payer=User)  --<  ExpenseShare  >--  User
+User  --<  Notification
+\end{lstlisting}
+
+\subsection{Opis encji}
+
+\begin{longtable}{L{2.6cm} L{2.8cm} L{7.6cm}}
+\toprule
+\textbf{Encja} & \textbf{Tabela} & \textbf{Kluczowe pola} \\
+\midrule
+\endhead
+User & \texttt{users} & \texttt{username} (unikalne), \texttt{email} (unikalne),
+    \texttt{password\_hash}, \texttt{profile\_image}, \texttt{bio}, \texttt{tags},
+    \texttt{last\_active} \\
+Event & \texttt{events} & \texttt{title}, \texttt{description}, \texttt{creator\_id},
+    \texttt{event\_date} \\
+EventParticipant & \texttt{event\_participants} & \texttt{event\_id}, \texttt{user\_id},
+    \texttt{role} (admin/member), \texttt{joined\_at} \\
+EventInvitation & \texttt{event\_invitations} & \texttt{event\_id}, \texttt{user\_id}
+    (zapraszany), \texttt{inviter\_id}, \texttt{status} \\
+SubEvent & \texttt{sub\_events} & \texttt{event\_id}, \texttt{title}, \texttt{start\_time},
+    \texttt{location\_id} (opcjonalne podpięcie punktu na mapie) \\
+LocationProposal & \texttt{location\_proposals} & \texttt{event\_id}, \texttt{creator\_id},
+    \texttt{name}, \texttt{latitude}, \texttt{longitude} \\
+LocationVote & \texttt{location\_votes} & \texttt{location\_id}, \texttt{user\_id},
+    \texttt{vote\_value} \\
+Message & \texttt{messages} & \texttt{event\_id}, \texttt{author\_id}, \texttt{content} \\
+Expense & \texttt{expenses} & \texttt{event\_id}, \texttt{payer\_id}, \texttt{amount},
+    \texttt{description} \\
+ExpenseShare & \texttt{expense\_shares} & \texttt{expense\_id}, \texttt{user\_id},
+    \texttt{amount}, \texttt{is\_settled}, \texttt{settled\_at} \\
+Friendship & \texttt{friendships} & \texttt{user\_id}, \texttt{friend\_id},
+    \texttt{status} \\
+Notification & \texttt{notifications} & \texttt{user\_id}, \texttt{type}, \texttt{message},
+    \texttt{is\_read} \\
+\bottomrule
+\end{longtable}
+
+\subsection{Kaskady i integralność}
+\begin{itemize}[noitemsep]
+    \item usunięcie \texttt{Event} kaskadowo usuwa uczestników, wydatki, lokalizacje,
+          wiadomości i~podpunkty (\texttt{cascade="all, delete-orphan"}),
+    \item usunięcie \texttt{LocationProposal} usuwa powiązane głosy,
+    \item usunięcie \texttt{LocationProposal} powiązanej z~\texttt{SubEvent} ustawia
+          \texttt{location\_id = NULL} (\texttt{ON DELETE SET NULL}) --- podpunkt nie znika,
+          traci tylko powiązanie z~mapą.
+\end{itemize}
+
+\textbf{Migracje:} projekt nie używa Alembica. Drobne, idempotentne migracje
+(\texttt{ADD COLUMN IF NOT EXISTS}) wykonywane są automatycznie przy starcie aplikacji
+w~\texttt{main.py} (funkcja \texttt{\_run\_lightweight\_migrations()}). Schemat tabel tworzony
+jest przez \texttt{Base.metadata.create\_all(bind=engine)}.
+
+% =====================================================================
+\section{Backend --- warstwy i logika}
+
+Backend stosuje rozdzielenie odpowiedzialności na cztery warstwy:
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{\texttt{api/} (routery)} --- definicja endpointów, walidacja wejścia,
+          autoryzacja (zależność \texttt{get\_current\_user}), wywoływanie warstwy CRUD,
+          serializacja odpowiedzi.
+    \item \textbf{\texttt{schemas/} (Pydantic)} --- kontrakty danych wejściowych/wyjściowych,
+          walidacja typów i~ograniczeń (np. \texttt{amount > 0}).
+    \item \textbf{\texttt{crud/} (logika biznesowa)} --- operacje na bazie, reguły domenowe
+          (walidacja sum w~wydatkach, algorytm rozliczeń).
+    \item \textbf{\texttt{models/} (ORM)} --- mapowanie obiektowo-relacyjne SQLAlchemy.
+\end{enumerate}
+
+\textbf{Warstwy pomocnicze:}
+\begin{itemize}[noitemsep]
+    \item \texttt{core/config.py} --- konfiguracja przez zmienne środowiskowe
+          (pydantic-settings), walidacja \texttt{SECRET\_KEY},
+    \item \texttt{core/database.py} --- silnik SQLAlchemy, fabryka sesji, zależność
+          \texttt{get\_db()},
+    \item \texttt{core/security.py} --- hashowanie haseł, polityka haseł, generowanie
+          tokenów JWT,
+    \item \texttt{core/uploads.py} --- bezpieczny zapis avatarów,
+    \item \texttt{services/geocoding.py} --- geokodowanie adresów przez Nominatim.
+\end{itemize}
+
+% =====================================================================
+\section{API REST --- wykaz endpointów}
+
+Większość endpointów wymaga nagłówka \texttt{Authorization: Bearer <token>}.
+
+\subsection{Użytkownicy --- \texttt{/api/users}}
+\begin{longtable}{L{1.8cm} L{5cm} L{6cm}}
+\toprule
+\textbf{Metoda} & \textbf{Ścieżka} & \textbf{Opis} \\
+\midrule
+\endhead
+POST & \texttt{/register} & rejestracja (multipart: email, username, password, avatar) \\
+POST & \texttt{/login} & logowanie (OAuth2), zwraca token JWT \\
+GET & \texttt{/me} & dane zalogowanego użytkownika \\
+PATCH & \texttt{/me} & edycja profilu (zmiana e-maila/hasła wymaga obecnego hasła) \\
+GET & \texttt{/me/finances/summary} & globalne podsumowanie długów i~należności \\
+DELETE & \texttt{/me} & trwałe usunięcie konta wraz z~danymi \\
+GET & \texttt{/\{user\_id\}/online-status} & status online użytkownika \\
+\bottomrule
+\end{longtable}
+
+\subsection{Wydarzenia --- \texttt{/api/events}}
+\begin{longtable}{L{1.8cm} L{5.5cm} L{5.5cm}}
+\toprule
+\textbf{Metoda} & \textbf{Ścieżka} & \textbf{Opis} \\
+\midrule
+\endhead
+POST & \texttt{""} & utworzenie wydarzenia \\
+GET & \texttt{""} & lista wydarzeń użytkownika \\
+GET & \texttt{/\{id\}/participants} & uczestnicy \\
+POST & \texttt{/\{id\}/invite} & zaproszenie znajomego \\
+GET & \texttt{/invitations} & otrzymane zaproszenia \\
+POST & \texttt{/invitations/\{id\}/accept|decline} & akceptacja / odrzucenie \\
+POST/GET & \texttt{/\{id\}/messages} & czat (wysłanie / lista) \\
+POST/GET & \texttt{/\{id\}/expenses} & wydatki (dodanie / lista) \\
+POST & \texttt{/\{id\}/shares/\{sid\}/settle} & spłata pojedynczego udziału \\
+POST & \texttt{/\{id\}/creditors/\{cid\}/settle-all} & zbiorcza spłata wobec wierzyciela \\
+GET & \texttt{/\{id\}/finances/summary} & bilans i~lista przelewów \\
+POST/PUT/DELETE & \texttt{/\{id\}/sub-events} & zarządzanie podpunktami \\
+PUT/DELETE & \texttt{/\{id\}} & edycja / usunięcie wydarzenia \\
+DELETE & \texttt{/\{id\}/participants/\{uid\}} & usunięcie uczestnika \\
+PUT & \texttt{/\{id\}/transfer-ownership/\{nid\}} & przekazanie własności \\
+\bottomrule
+\end{longtable}
+
+\subsection{Znajomi --- \texttt{/api/friends}}
+\begin{longtable}{L{1.8cm} L{5cm} L{6cm}}
+\toprule
+\textbf{Metoda} & \textbf{Ścieżka} & \textbf{Opis} \\
+\midrule
+\endhead
+POST & \texttt{/request} & wysłanie zaproszenia \\
+POST & \texttt{/\{id\}/accept} & akceptacja \\
+GET & \texttt{""} & lista znajomych \\
+GET & \texttt{/pending} & oczekujące zaproszenia \\
+GET & \texttt{/search-users} & wyszukiwanie użytkowników \\
+DELETE & \texttt{/\{friend\_id\}} & usunięcie znajomego \\
+\bottomrule
+\end{longtable}
+
+\subsection{Lokalizacje i powiadomienia}
+\begin{longtable}{L{1.8cm} L{6cm} L{5cm}}
+\toprule
+\textbf{Metoda} & \textbf{Ścieżka} & \textbf{Opis} \\
+\midrule
+\endhead
+GET/POST & \texttt{/api/events/\{id\}/locations} & propozycje lokalizacji \\
+DELETE & \texttt{/api/locations/\{id\}} & usunięcie propozycji \\
+POST/DELETE & \texttt{/api/locations/\{id\}/votes} & głos / wycofanie głosu \\
+GET & \texttt{/api/notifications} & lista powiadomień \\
+PUT & \texttt{/api/notifications/\{id\}/read} & oznaczenie jako przeczytane \\
+DELETE & \texttt{/api/notifications} & wyczyszczenie powiadomień \\
+\bottomrule
+\end{longtable}
+
+\noindent Pełna, interaktywna specyfikacja (OpenAPI/Swagger) dostępna jest automatycznie
+pod adresem \texttt{/docs} dzięki FastAPI.
+
+% =====================================================================
+\section{Komunikacja w czasie rzeczywistym (WebSocket)}
+
+Endpoint \texttt{/ws?token=<JWT>} (\texttt{api/websocket.py}) obsługuje połączenia czasu
+rzeczywistego.
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Autoryzacja:} token JWT przekazywany w~query stringu; brak lub nieważny
+          token skutkuje zamknięciem połączenia kodem \texttt{1008}.
+    \item \textbf{\texttt{ConnectionManager}} utrzymuje mapę
+          \texttt{user\_id $\rightarrow$ [WebSocket]} (jeden użytkownik może mieć wiele
+          kart/urządzeń).
+    \item \textbf{Status online} jest wyznaczany \emph{wyłącznie} na podstawie aktywnego
+          połączenia WebSocket (\texttt{is\_user\_online}), a~nie pola \texttt{last\_active}
+          --- świadoma decyzja projektowa (poprzednie podejście resetowało zegar przy każdym
+          żądaniu i~użytkownik nigdy nie przechodził w~offline).
+    \item Przy połączeniu/rozłączeniu manager powiadamia znajomych o~zmianie statusu.
+\end{itemize}
+
+\textbf{Typy komunikatów} rozsyłanych do klientów:
+\begin{itemize}[noitemsep]
+    \item \texttt{user\_status} --- zmiana statusu online znajomego,
+    \item \texttt{profile\_updated} --- znajomy zaktualizował profil,
+    \item \texttt{friend\_removed} --- znajomy usunął konto / znajomość,
+    \item powiadomienia o~zdarzeniach w~wydarzeniach (\texttt{broadcast\_to\_event}).
+\end{itemize}
+
+% =====================================================================
+\section{Moduł finansowy --- algorytm rozliczeń}
+
+Najbardziej złożona część logiki biznesowej (\texttt{crud/expense.py}).
+
+\subsection{Model wydatku}
+Każdy wydatek (\texttt{Expense}) ma płatnika (\texttt{payer\_id}) i~listę udziałów
+(\texttt{ExpenseShare}) --- kto i~ile jest winny. Walidacja przy tworzeniu wymaga m.in.:
+\begin{itemize}[noitemsep]
+    \item kwoty dodatniej,
+    \item sumy udziałów równej kwocie wydatku (z~tolerancją jednego grosza),
+    \item braku duplikatów użytkowników w~udziałach,
+    \item przynależności płatnika i~dłużników do wydarzenia.
+\end{itemize}
+Jeśli płatnik występuje też we własnych udziałach, jego udział jest od razu oznaczany jako
+spłacony (\texttt{is\_settled=True}) --- nie płaci samemu sobie.
+
+\subsection{Obliczanie bilansu}
+Funkcja \texttt{\_compute\_event\_balances} liczy saldo per użytkownik z~\textbf{niespłaconych}
+udziałów: płatnik dostaje $+amount$, dłużnik $-amount$. Wpisy audytowe spłat (rozpoznawane po
+prefiksie opisu \texttt{"Rozliczenie"}) są pomijane, by nie zaburzać salda.
+
+\subsection{Minimalizacja liczby przelewów (greedy min-cash-flow)}
+Funkcja \texttt{calculate\_finance\_summary} zamienia bilans na \textbf{minimalną liczbę
+przelewów}:
+\begin{enumerate}[noitemsep]
+    \item dzieli użytkowników na dłużników (saldo ujemne) i~wierzycieli (saldo dodatnie),
+    \item sortuje obie listy malejąco po kwocie,
+    \item dopasowuje największego dłużnika do największego wierzyciela, generując przelew na
+          $\min(\text{dług}, \text{należność})$, i~powtarza aż do wyrównania.
+\end{enumerate}
+Dzięki temu zamiast „każdy z~każdym” powstaje krótka lista konkretnych przelewów.
+
+\subsection{Spłaty}
+\begin{itemize}[noitemsep]
+    \item \texttt{settle\_share} --- oznacza pojedynczy udział jako spłacony i~tworzy
+          \textbf{wpis audytowy} (oddzielny \texttt{Expense} z~prefiksem \texttt{"Rozliczenie"})
+          jako ślad w~historii.
+    \item \texttt{settle\_all\_with\_creditor} --- zbiorczo zamyka wszystkie otwarte długi
+          użytkownika wobec jednego wierzyciela.
+    \item \texttt{calculate\_global\_finance\_summary} --- agreguje długi/należności
+          użytkownika ze wszystkich wydarzeń (widok globalny na Dashboardzie).
+\end{itemize}
+
+\noindent Operacje na pieniądzach używają stałej tolerancji \texttt{CENT = 0.01} z~uwagi na
+niedokładność arytmetyki zmiennoprzecinkowej.
+
+% =====================================================================
+\section{Bezpieczeństwo}
+
+\subsection{Uwierzytelnianie i hasła}
+\begin{itemize}[noitemsep]
+    \item hasła hashowane algorytmem \textbf{bcrypt} (passlib),
+    \item polityka haseł: 10--128 znaków, min. 3 z~4 klas znaków, blokada haseł pospolitych
+          (\texttt{validate\_password\_strength}),
+    \item \textbf{JWT} (HS256) z~polami \texttt{exp}, \texttt{iat}, \texttt{jti}, \texttt{type}
+          --- krótki czas życia (60 min),
+    \item \textbf{ochrona przed user enumeration}: przy logowaniu nieistniejącego konta i~tak
+          wykonywany jest pełny koszt bcrypt (\texttt{dummy\_verify}) --- wyrównanie czasu
+          odpowiedzi (timing attack),
+    \item zmiana e-maila/hasła wymaga potwierdzenia obecnym hasłem (re-auth).
+\end{itemize}
+
+\subsection{Konfiguracja}
+W trybie \texttt{production} aplikacja \textbf{nie wystartuje} bez silnego \texttt{SECRET\_KEY}
+($\geq$ 32 znaki); w~\texttt{development} generowany jest losowy klucz efemeryczny.
+
+\subsection{Nagłówki bezpieczeństwa (SecurityHeadersMiddleware)}
+\begin{itemize}[noitemsep]
+    \item \texttt{X-Content-Type-Options: nosniff},
+    \item \texttt{X-Frame-Options: DENY},
+    \item \texttt{Referrer-Policy: strict-origin-when-cross-origin},
+    \item \texttt{Permissions-Policy} (ograniczenie geolokalizacji/kamery/mikrofonu),
+    \item \texttt{Strict-Transport-Security} (HSTS) --- tylko w~produkcji.
+\end{itemize}
+
+\subsection{Pozostałe}
+\begin{itemize}[noitemsep]
+    \item \textbf{CORS} --- restrykcyjna allowlista origin (\texttt{ALLOWED\_ORIGINS}),
+          ograniczone metody i~nagłówki,
+    \item \textbf{Upload plików} --- walidacja rozmiaru avatara (limit 5 MB,
+          \texttt{MAX\_AVATAR\_SIZE}).
+\end{itemize}
+
+% =====================================================================
+\section{Frontend}
+
+SPA w~React 19 z~routingiem klienckim (\texttt{App.jsx}):
+
+\begin{longtable}{L{4cm} L{3.5cm} L{5.5cm}}
+\toprule
+\textbf{Ścieżka} & \textbf{Widok} & \textbf{Rola} \\
+\midrule
+\endhead
+\texttt{/} & AuthPage & logowanie / rejestracja \\
+\texttt{/dashboard} & Dashboard & lista wydarzeń, znajomi, mapa globalna, finanse \\
+\texttt{/events/:id} & EventDetails & szczegóły, czat, mapa, podpunkty \\
+\texttt{/events/:id/finance} & EventFinance & wydatki i~rozliczenia \\
+\texttt{/edit-profile} & EditProfilePage & edycja profilu \\
+\texttt{/settings} & SettingsPage & ustawienia (waluta, wygląd) \\
+\bottomrule
+\end{longtable}
+
+\textbf{Zarządzanie stanem globalnym} --- React Context:
+\begin{itemize}[noitemsep]
+    \item \texttt{WebSocketContext} --- pojedyncze, współdzielone połączenie WebSocket,
+    \item \texttt{CurrencyContext} --- wybrana waluta,
+    \item \texttt{DialogContext} --- globalne okna dialogowe / potwierdzenia.
+\end{itemize}
+
+\textbf{Warstwa usług} (\texttt{src/services/}):
+\begin{itemize}[noitemsep]
+    \item \texttt{api.js} --- skonfigurowany klient Axios (bazowy URL, dołączanie tokenu),
+    \item \texttt{authService.js} --- logowanie/wylogowanie, obsługa tokenu,
+    \item \texttt{preferences.js} --- preferencje wyglądu zapisywane lokalnie.
+\end{itemize}
+
+\textbf{Mapy} --- Leaflet + react-leaflet (\texttt{EventMapComponent},
+\texttt{GlobalDashboardMap}) na danych OpenStreetMap; współrzędne propozycji uzyskiwane
+z~geokodowania po stronie backendu.
+
+\subsection{Zgodność z~heurystykami Nielsena}
+
+Interfejs FriendSync był projektowany w~oparciu o~10 heurystyk użyteczności Jakoba Nielsena.
+Poniżej zestawienie każdej heurystyki z~jej realizacją w~aplikacji:
+
+\begin{longtable}{L{4.5cm} L{8.5cm}}
+\toprule
+\textbf{Heurystyka} & \textbf{Realizacja w~FriendSync} \\
+\midrule
+\endhead
+1. Widoczność stanu systemu & status online znajomych w~czasie rzeczywistym (WebSocket),
+    wskaźniki ładowania, liczniki nieprzeczytanych powiadomień, potwierdzenia akcji (toast). \\
+2. Zgodność z~rzeczywistością & język naturalny i~dziedzinowy (znajomi, wydarzenia,
+    wydatki, „kto komu jest winny”), metafory mapy i~kalendarza zamiast pojęć technicznych. \\
+3. Kontrola i~swoboda użytkownika & możliwość anulowania/odrzucenia zaproszeń, wycofania
+    głosu na lokalizację, edycji i~usuwania wydarzeń, opuszczenia wydarzenia. \\
+4. Spójność i~standardy & jednolite komponenty (\texttt{DialogContext}), spójna paleta
+    Tailwind, powtarzalny układ widoków i~ikonografia (\texttt{lucide-react}). \\
+5. Zapobieganie błędom & walidacja formularzy po stronie klienta i~serwera (Pydantic),
+    okna potwierdzenia dla akcji destrukcyjnych, polityka silnych haseł. \\
+6. Rozpoznawanie zamiast przypominania & widoczne listy wydarzeń, znajomych i~zaproszeń,
+    podpowiedzi w~wyszukiwaniu użytkowników, mapa z~oznaczonymi propozycjami. \\
+7. Elastyczność i~wydajność & skróty: zbiorcza spłata wobec wierzyciela
+    (\texttt{settle-all}), globalny widok finansów na Dashboardzie, zapisywane preferencje. \\
+8. Estetyka i~minimalizm & czysty, responsywny layout, prezentacja tylko istotnych
+    informacji, podział finansów na widok per wydarzenie i~globalny. \\
+9. Pomoc w~rozpoznaniu i~naprawie błędów & czytelne komunikaty błędów (np. niepoprawna suma
+    udziałów, błędne hasło) zamiast kodów technicznych. \\
+10. Pomoc i~dokumentacja & opisowe etykiety i~podpowiedzi, intuicyjny przepływ
+    (rejestracja $\rightarrow$ znajomi $\rightarrow$ wydarzenie $\rightarrow$ rozliczenie),
+    interaktywna dokumentacja API pod \texttt{/docs}. \\
+\bottomrule
+\end{longtable}
+
+% =====================================================================
+\section{Zrzuty ekranu}
+
+Poniżej zaprezentowano kluczowe widoki interfejsu użytkownika aplikacji FriendSync.
+
+\medskip
+\noindent\textit{Uwaga: pliki graficzne należy umieścić w~katalogu \texttt{screeny/} obok pliku
+\texttt{.tex}, pod nazwami podanymi w~ramkach. Do czasu ich dodania w~dokumencie wyświetlane
+są miejsca zastępcze.}
+
+\screen{auth.png}{Ekran logowania i~rejestracji (\texttt{AuthPage}).}
+
+\screen{dashboard.png}{Pulpit użytkownika --- lista wydarzeń, znajomi, mapa globalna i~finanse.}
+
+\screen{event-details.png}{Szczegóły wydarzenia --- czat, podpunkty i~mapa propozycji lokalizacji.}
+
+\screen{event-map.png}{Propozycje lokalizacji na mapie wraz z~głosowaniem.}
+
+\screen{event-finance.png}{Moduł finansowy --- wydatki i~rozliczenia z~minimalizacją przelewów.}
+
+\screen{edit-profile.png}{Edycja profilu użytkownika (avatar, bio, tagi).}
+
+\screen{settings.png}{Ustawienia aplikacji (waluta, wygląd).}
+
+% =====================================================================
+\section{Testy}
+
+\subsection{Backend (pytest)}
+\begin{itemize}[noitemsep]
+    \item \texttt{conftest.py} --- fixtury, izolowana baza testowa,
+    \item \texttt{test\_api.py} --- testy integracyjne endpointów,
+    \item \texttt{test\_finance.py} --- testy algorytmu rozliczeń (bilans, minimalizacja
+          przelewów, spłaty),
+    \item \texttt{test\_schemas.py} --- walidacja schematów Pydantic,
+    \item \texttt{test\_security.py} --- hashowanie haseł, polityka haseł, JWT.
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+cd backend
+pytest
+\end{lstlisting}
+
+\subsection{Frontend (Vitest + Testing Library)}
+Testy logiki usług: \texttt{authService.test.js}, \texttt{preferences.test.js}.
+
+\begin{lstlisting}[language=bash]
+cd frontend
+npm run test
+\end{lstlisting}
+
+% =====================================================================
+\section{Wdrożenie (Docker / Caddy)}
+
+Plik \texttt{docker-compose.yml} definiuje cztery usługi:
+
+\begin{longtable}{L{2.2cm} L{4cm} L{6.5cm}}
+\toprule
+\textbf{Usługa} & \textbf{Obraz / źródło} & \textbf{Rola} \\
+\midrule
+\endhead
+\texttt{db} & \texttt{postgres:16} & baza danych (wolumen \texttt{postgres\_data}) \\
+\texttt{backend} & build \texttt{./backend} & FastAPI + Uvicorn (port 8000) \\
+\texttt{frontend} & build \texttt{./frontend} & React zbudowany i~serwowany przez Nginx \\
+\texttt{caddy} & \texttt{caddy:alpine} & reverse proxy + HTTPS (porty 80/443/8443) \\
+\bottomrule
+\end{longtable}
+
+\textbf{Caddy} (\texttt{Caddyfile}) kieruje:
+\begin{itemize}[noitemsep]
+    \item \texttt{friendsync.me} $\rightarrow$ frontend (Nginx),
+    \item \texttt{friendsync.me:8443} $\rightarrow$ backend (API + WebSocket),
+    \item automatycznie zarządza certyfikatami TLS.
+\end{itemize}
+
+\textbf{Backend Dockerfile} --- \texttt{python:3.12-slim}, instalacja zależności systemowych
+(\texttt{gcc}, \texttt{libpq-dev}) i~pythonowych.
+
+\textbf{Frontend Dockerfile} --- wieloetapowy build: \texttt{node:22-alpine} buduje aplikację
+Vite, następnie artefakty kopiowane są do obrazu \texttt{nginx:alpine}.
+
+\textbf{Zmienne środowiskowe} (przez \texttt{.env}): \texttt{DB\_PASSWORD},
+\texttt{SECRET\_KEY}, \texttt{ALLOWED\_ORIGINS}, \texttt{VITE\_API\_URL},
+\texttt{DATABASE\_URL}.
+
+\begin{lstlisting}[language=bash]
+docker compose up --build
+\end{lstlisting}
+
+% =====================================================================
+\section{Uruchomienie lokalne}
+
+\subsection{Backend}
+\begin{lstlisting}[language=bash]
+cd backend
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+\end{lstlisting}
+API dostępne pod \texttt{http://localhost:8000}, dokumentacja Swagger pod
+\texttt{http://localhost:8000/docs}.
+
+\subsection{Frontend}
+\begin{lstlisting}[language=bash]
+cd frontend
+npm install
+npm run dev
+\end{lstlisting}
+Aplikacja dostępna pod \texttt{http://localhost:5173}.
+
+\vspace{0.5cm}
+\noindent\textit{W trybie deweloperskim, jeśli \texttt{SECRET\_KEY} nie jest ustawiony, backend
+generuje losowy klucz przy każdym starcie --- wymaga to ponownego logowania po restarcie
+serwera.}
+
+\end{document}

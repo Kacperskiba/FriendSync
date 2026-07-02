@@ -6,6 +6,7 @@ import EventDetails from './pages/EventDetails';
 import EventFinance from "./pages/EventFinance.jsx";
 import EditProfilePage from "./components/EditProfilePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
+import JoinEventPage from "./pages/JoinEventPage.jsx";
 import { WebSocketProvider } from './components/WebSocketContext';
 import { CurrencyProvider } from './components/CurrencyContext';
 import { DialogProvider } from './components/DialogContext';
@@ -30,6 +31,7 @@ export default function App() {
                         <Route path="/events/:id/finance" element={<EventFinance/>}/>
                         <Route path="/edit-profile" element={<EditProfilePage />} />
                         <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/join/:token" element={<JoinEventPage />} />
                     </Routes>
                 </DialogProvider>
             </WebSocketProvider>

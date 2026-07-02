@@ -9,7 +9,7 @@ class SubEvent(Base):
     event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
-    start_time = Column(DateTime, nullable=True)
+    start_time = Column(DateTime(timezone=True), nullable=True)
 
     # Opcjonalne podpięcie punktu z mapy wyjazdu. SET NULL — gdy lokalizacja
     # zostanie usunięta, podpunkt po prostu traci powiązanie (nie znika).

@@ -84,3 +84,32 @@ class EventInvitationResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DateProposalCreate(BaseModel):
+    proposed_date: datetime
+
+
+class DateProposalResponse(BaseModel):
+    id: int
+    event_id: int
+    proposed_date: datetime
+    creator: InviterMini
+    votes_count: int
+    voted_by_me: bool
+    voters: List[str] = []   # nazwy użytkowników, którzy zagłosowali
+
+
+class InviteLinkResponse(BaseModel):
+    token: str
+    expires_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InviteLinkPreviewResponse(BaseModel):
+    """Publiczny podgląd wydarzenia dla osoby otwierającej link zaproszeniowy."""
+    event: EventMini
+    description: Optional[str] = None
+    inviter: InviterMini
+    participants_count: int

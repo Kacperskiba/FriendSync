@@ -9,8 +9,9 @@ from app.core.database import engine, Base
 from app.api import user_routes
 from app.api import event_routes
 from app.api import location_routes
-from app.models import user, event, expense, location, message, friendship, notification, event_invitation
+from app.models import user, event, expense, location, message, friendship, notification, event_invitation, event_invite_link, date_proposal
 from app.api import friend_routes
+from app.api import date_routes
 from app.api import notification_routes
 from fastapi.staticfiles import StaticFiles
 from app.api import websocket
@@ -25,10 +26,32 @@ def _run_lightweight_migrations() -> None:
     Używamy `ADD COLUMN IF NOT EXISTS` (Postgres 9.6+), więc te ALTERy są
     bezpieczne do uruchamiania wielokrotnie i nie ruszają istniejących danych.
     """
+    # Składnia jest postgresowa — na SQLite (testy) schemat i tak w całości
+    # tworzy create_all z aktualnych modeli, migracje nie są potrzebne.
+    if engine.dialect.name != "postgresql":
+        return
+    # Konwersja naiwnych timestampów na timestamptz. Wartości w bazie to czas UTC
+    # (frontend wysyłał toISOString()), stąd USING ... AT TIME ZONE 'UTC'.
+    # Warunek na data_type czyni migrację idempotentną.
+    _tz_migration = """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '{table}' AND column_name = '{column}'
+              AND data_type = 'timestamp without time zone'
+        ) THEN
+            ALTER TABLE {table} ALTER COLUMN {column} TYPE TIMESTAMP WITH TIME ZONE
+                USING {column} AT TIME ZONE 'UTC';
+        END IF;
+    END $$;
+    """
     statements = [
         "ALTER TABLE expense_shares ADD COLUMN IF NOT EXISTS is_settled BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE expense_shares ADD COLUMN IF NOT EXISTS settled_at TIMESTAMP WITH TIME ZONE NULL",
         "ALTER TABLE sub_events ADD COLUMN IF NOT EXISTS location_id INTEGER NULL REFERENCES location_proposals(id) ON DELETE SET NULL",
+        _tz_migration.format(table="events", column="event_date"),
+        _tz_migration.format(table="sub_events", column="start_time"),
     ]
     with engine.begin() as conn:
         for stmt in statements:
@@ -82,6 +105,7 @@ app.add_middleware(
 app.include_router(user_routes.router)
 app.include_router(event_routes.router)
 app.include_router(location_routes.router)
+app.include_router(date_routes.router)
 app.include_router(friend_routes.router)
 app.include_router(notification_routes.router)
 app.include_router(websocket.router)

@@ -14,11 +14,12 @@ import {
     Bell, Map, CalendarDays, Trash2, Pencil, MapPin,
     MessageSquare, Wallet, LogOut, Settings, User,
     Plus, ChevronDown, X, Check, Send, UserMinus, Crown,
-    ArrowLeft, Maximize2
+    ArrowLeft, Maximize2, Link2, ThumbsUp
 } from 'lucide-react';
 import { API_BASE_URL } from '../services/api';
 const API_URL = `${API_BASE_URL}/api/events`;
 const FRIENDS_API = `${API_BASE_URL}/api/friends`;
+const DATE_API = `${API_BASE_URL}/api/date-proposals`;
 const BASE_URL = API_BASE_URL;
 
 export default function EventDetails() {
@@ -121,6 +122,64 @@ export default function EventDetails() {
         } catch (err) {}
     };
 
+    // --- GŁOSOWANIE NA TERMIN WYDARZENIA ---
+    const [dateProposals, setDateProposals] = useState([]);
+    const [newProposedDate, setNewProposedDate] = useState(null);
+
+    const fetchDateProposals = async () => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await axios.get(`${API_URL}/${id}/date-proposals`, { headers: {Authorization: `Bearer ${token}`} });
+            setDateProposals(res.data);
+        } catch (err) { console.error("Błąd propozycji terminów:", err); }
+    };
+
+    const handleProposeDate = async (e) => {
+        e.preventDefault();
+        if (!newProposedDate) return;
+        const token = localStorage.getItem('token');
+        try {
+            await axios.post(`${API_URL}/${id}/date-proposals`,
+                { proposed_date: newProposedDate.toISOString() },
+                { headers: {Authorization: `Bearer ${token}`} });
+            setNewProposedDate(null);
+            fetchDateProposals();
+        } catch (err) { alert(err.response?.data?.detail || "Błąd dodawania propozycji terminu"); }
+    };
+
+    const handleToggleDateVote = async (proposal) => {
+        const token = localStorage.getItem('token');
+        const config = { headers: {Authorization: `Bearer ${token}`} };
+        try {
+            if (proposal.voted_by_me) {
+                await axios.delete(`${DATE_API}/${proposal.id}/votes`, config);
+            } else {
+                await axios.post(`${DATE_API}/${proposal.id}/votes`, {}, config);
+            }
+            fetchDateProposals();
+        } catch (err) { alert(err.response?.data?.detail || "Błąd głosowania"); }
+    };
+
+    const handleDeleteDateProposal = async (proposalId) => {
+        if (!await confirm("Usunąć tę propozycję terminu?", { danger: true })) return;
+        const token = localStorage.getItem('token');
+        try {
+            await axios.delete(`${DATE_API}/${proposalId}`, { headers: {Authorization: `Bearer ${token}`} });
+            fetchDateProposals();
+        } catch (err) { alert(err.response?.data?.detail || "Błąd usuwania propozycji"); }
+    };
+
+    const handleAcceptDateProposal = async (proposal) => {
+        const dateLabel = new Date(proposal.proposed_date).toLocaleString('pl-PL', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
+        if (!await confirm(`Ustawić ${dateLabel} jako oficjalny termin wydarzenia? Pozostałe propozycje zostaną usunięte.`, { confirmText: 'Zatwierdź' })) return;
+        const token = localStorage.getItem('token');
+        try {
+            await axios.post(`${DATE_API}/${proposal.id}/accept`, {}, { headers: {Authorization: `Bearer ${token}`} });
+            fetchDateProposals();
+            fetchEventData();
+        } catch (err) { alert(err.response?.data?.detail || "Błąd zatwierdzania terminu"); }
+    };
+
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (searchQuery.length >= 2) {
@@ -143,6 +202,7 @@ export default function EventDetails() {
         fetchEventData();
         fetchParticipants();
         fetchLocations();
+        fetchDateProposals();
     }, [id]);
 
     useEffect(() => { if (isChatOpen) fetchMessages(); }, [isChatOpen]);
@@ -153,6 +213,7 @@ export default function EventDetails() {
             fetchEventData();
             fetchParticipants();
             fetchLocations();
+            fetchDateProposals();
             if (isChatOpen) fetchMessages();
         });
         const removeDel = addListener("event_deleted", (msg) => {
@@ -173,6 +234,21 @@ export default function EventDetails() {
     }, [addListener]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({behavior: "smooth"}); }, [messages]);
+
+    const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+
+    const handleCopyInviteLink = async () => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await axios.post(`${API_URL}/${id}/invite-link`, {}, { headers: {Authorization: `Bearer ${token}`} });
+            const url = `${window.location.origin}/join/${res.data.token}`;
+            await navigator.clipboard.writeText(url);
+            setInviteLinkCopied(true);
+            setTimeout(() => setInviteLinkCopied(false), 2500);
+        } catch (err) {
+            alert(err.response?.data?.detail || "Błąd generowania linku zaproszeniowego");
+        }
+    };
 
     const handleInvite = async (e, directIdentifier = null) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
@@ -518,6 +594,70 @@ export default function EventDetails() {
                 {/* Szersza kolumna: 500px, a na super-dużych ekranach 550px */}
                 <div className="w-full xl:w-[500px] 2xl:w-[550px] shrink-0 flex flex-col gap-8 h-fit">
 
+                    {/* KARTA GŁOSOWANIA NA TERMIN */}
+                    <div className="bg-[#0f0f0f] rounded-[3rem] p-8 border border-white/5 shadow-2xl">
+                        <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px] mb-6">Głosowanie na termin</h3>
+
+                        <form onSubmit={handleProposeDate} className="flex flex-col sm:flex-row gap-2 mb-6 relative z-30">
+                            <div className="relative flex-1">
+                                <DatePicker
+                                    selected={newProposedDate}
+                                    onChange={(date) => setNewProposedDate(date)}
+                                    showTimeSelect timeFormat="HH:mm" timeIntervals={15} timeCaption="Czas" dateFormat="d MMMM yyyy, HH:mm" locale="pl"
+                                    minDate={new Date()}
+                                    placeholderText="Zaproponuj termin..."
+                                    className="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 outline-none focus:border-green-500/50 transition-all font-bold text-xs text-gray-200 cursor-pointer"
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50"><CalendarDays size={16} /></span>
+                            </div>
+                            <button type="submit" disabled={!newProposedDate} className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white font-black uppercase text-[10px] py-4 px-6 rounded-2xl transition-all shadow-xl shadow-green-900/20">
+                                Zaproponuj
+                            </button>
+                        </form>
+
+                        {dateProposals.length === 0 ? (
+                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest text-center py-2">
+                                Brak propozycji terminu — dodaj pierwszą!
+                            </p>
+                        ) : (
+                            <div className="space-y-3 custom-scrollbar max-h-[40vh] overflow-y-auto pr-2">
+                                {dateProposals.map(p => (
+                                    <div key={p.id} className="flex items-center justify-between bg-black p-4 rounded-2xl border border-white/5 group hover:border-white/10 transition-all gap-3">
+                                        <div className="min-w-0">
+                                            <span className="block text-[11px] font-black uppercase tracking-tight text-white italic">
+                                                {new Date(p.proposed_date).toLocaleString('pl-PL', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
+                                            </span>
+                                            <span className="block text-[8px] font-black uppercase tracking-widest text-gray-600 truncate" title={p.voters.join(', ')}>
+                                                {p.creator.username} · {p.votes_count} {p.votes_count === 1 ? 'głos' : 'głosów'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                onClick={() => handleToggleDateVote(p)}
+                                                title={p.voted_by_me ? "Wycofaj głos" : "Zagłosuj na ten termin"}
+                                                className={`p-2 rounded-lg border transition-colors ${p.voted_by_me ? 'bg-green-500/20 text-green-400 border-green-500/40' : 'border-white/5 text-gray-500 hover:text-green-500'}`}
+                                            ><ThumbsUp size={16} /></button>
+                                            {isOwner && (
+                                                <button
+                                                    onClick={() => handleAcceptDateProposal(p)}
+                                                    title="Zatwierdź jako oficjalny termin"
+                                                    className="p-2 rounded-lg border border-white/5 text-gray-500 hover:text-yellow-500 transition-colors"
+                                                ><Crown size={16} /></button>
+                                            )}
+                                            {(isOwner || p.creator.id === currentUserId) && (
+                                                <button
+                                                    onClick={() => handleDeleteDateProposal(p.id)}
+                                                    title="Usuń propozycję"
+                                                    className="p-2 rounded-lg border border-white/5 text-gray-500 hover:text-red-500 transition-colors"
+                                                ><Trash2 size={16} /></button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     {/* KARTA EKIPY */}
                     <div className="bg-[#0f0f0f] rounded-[3rem] p-8 border border-white/5 shadow-2xl">
                         <h3 className="font-black text-gray-500 uppercase tracking-[0.3em] text-[10px] mb-6">Ekipa</h3>
@@ -545,6 +685,18 @@ export default function EventDetails() {
                                     ))}
                                 </div>
                             )}
+                            <button
+                                type="button"
+                                onClick={handleCopyInviteLink}
+                                className={`mt-3 w-full inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 border ${
+                                    inviteLinkCopied
+                                        ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                                        : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border-white/5'
+                                }`}
+                            >
+                                {inviteLinkCopied ? <Check size={14} /> : <Link2 size={14} />}
+                                {inviteLinkCopied ? 'Skopiowano link!' : 'Skopiuj link zaproszenia'}
+                            </button>
                         </div>
 
                         <div className="space-y-3 custom-scrollbar max-h-[40vh] overflow-y-auto pr-2">

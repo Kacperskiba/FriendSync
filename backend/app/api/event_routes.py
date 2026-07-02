@@ -25,11 +25,15 @@ from app.api.websocket import manager
 from app.schemas.event import SubEventCreate, SubEventResponse
 from app.crud.event import create_sub_event
 
-from app.schemas.event import EventUpdate, SubEventUpdate, EventInvitationResponse
+from app.schemas.event import EventUpdate, SubEventUpdate, EventInvitationResponse, \
+    InviteLinkResponse, InviteLinkPreviewResponse
 
 from app.models.event import Event, EventParticipant
 from app.models.event_invitation import EventInvitation
+from app.models.event_invite_link import EventInviteLink, generate_invite_token
 from app.crud.notification import create_notification
+
+from datetime import datetime, timedelta, timezone
 
 from app.models.sub_event import SubEvent
 
@@ -236,6 +240,147 @@ async def decline_event_invitation(
     )
     await manager.send_to_user(inviter_id, {"type": "event_invitation_resolved"})
     return {"message": "Zaproszenie odrzucone."}
+
+
+# --- ZAPROSZENIA PRZEZ LINK ---
+
+INVITE_LINK_LIFETIME_DAYS = 7
+
+
+def _get_valid_invite_link(db: Session, token: str) -> EventInviteLink:
+    """Zwraca aktywny, niewygasły link albo rzuca 404/410."""
+    link = db.query(EventInviteLink).filter(EventInviteLink.token == token).first()
+    if not link or not link.is_active:
+        raise HTTPException(status_code=404, detail="Link zaproszeniowy nie istnieje lub został unieważniony.")
+    if link.expires_at and link.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Link zaproszeniowy wygasł.")
+    return link
+
+
+@router.post("/{event_id}/invite-link", response_model=InviteLinkResponse)
+def create_or_get_invite_link(
+        event_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """
+    Zwraca aktywny link zaproszeniowy do wydarzenia (tworzy nowy, jeśli nie istnieje
+    lub poprzedni wygasł). Każdy uczestnik może wygenerować link.
+    """
+    event = get_event(db, event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje.")
+
+    participant = get_participant(db, event_id=event_id, user_id=current_user.id)
+    if not participant:
+        raise HTTPException(status_code=403, detail="Nie masz dostępu do tego wydarzenia.")
+
+    now = datetime.now(timezone.utc)
+    link = db.query(EventInviteLink).filter(
+        EventInviteLink.event_id == event_id,
+        EventInviteLink.is_active.is_(True)
+    ).first()
+
+    if link and link.expires_at and link.expires_at < now:
+        link.is_active = False
+        link = None
+
+    if not link:
+        link = EventInviteLink(
+            event_id=event_id,
+            token=generate_invite_token(),
+            created_by=current_user.id,
+            expires_at=now + timedelta(days=INVITE_LINK_LIFETIME_DAYS)
+        )
+        db.add(link)
+        db.commit()
+        db.refresh(link)
+
+    return link
+
+
+@router.delete("/{event_id}/invite-link")
+def revoke_invite_link(
+        event_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Unieważnia wszystkie aktywne linki zaproszeniowe wydarzenia (tylko organizator)."""
+    event = get_event(db, event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje.")
+
+    is_organizer = event.creator_id == current_user.id or getattr(event, 'owner_id', None) == current_user.id
+    if not is_organizer:
+        raise HTTPException(status_code=403, detail="Tylko organizator może unieważnić link.")
+
+    db.query(EventInviteLink).filter(
+        EventInviteLink.event_id == event_id,
+        EventInviteLink.is_active.is_(True)
+    ).update({"is_active": False})
+    db.commit()
+    return {"message": "Link zaproszeniowy unieważniony."}
+
+
+@router.get("/join/{token}", response_model=InviteLinkPreviewResponse)
+def preview_invite_link(token: str, db: Session = Depends(get_db)):
+    """
+    Publiczny podgląd wydarzenia dla osoby otwierającej link zaproszeniowy.
+    Nie wymaga logowania — pokazuje tylko podstawowe informacje.
+    """
+    link = _get_valid_invite_link(db, token)
+    event = get_event(db, event_id=link.event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje.")
+
+    participants_count = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event.id
+    ).count()
+
+    return {
+        "event": event,
+        "description": event.description,
+        "inviter": link.creator,
+        "participants_count": participants_count,
+    }
+
+
+@router.post("/join/{token}")
+async def join_event_via_link(
+        token: str,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Dołącza zalogowanego użytkownika do wydarzenia na podstawie linku zaproszeniowego."""
+    link = _get_valid_invite_link(db, token)
+    event = get_event(db, event_id=link.event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Wydarzenie nie istnieje.")
+
+    # Już jest uczestnikiem — po prostu przekieruj na wydarzenie
+    if get_participant(db, event_id=event.id, user_id=current_user.id):
+        return {"message": "Jesteś już uczestnikiem tego wydarzenia.", "event_id": event.id, "joined": False}
+
+    add_user_to_event(db=db, event_id=event.id, user_id=current_user.id)
+
+    # Jeśli wisiało klasyczne zaproszenie e-mailowe — uznajemy je za skonsumowane
+    db.query(EventInvitation).filter(
+        EventInvitation.event_id == event.id,
+        EventInvitation.user_id == current_user.id,
+        EventInvitation.status == "pending"
+    ).delete()
+    db.commit()
+
+    create_notification(
+        db=db,
+        user_id=link.created_by,
+        notif_type="event_link_joined",
+        message=f"{current_user.username} dołączył do „{event.title}” przez link zaproszeniowy."
+    )
+    await manager.send_to_user(link.created_by, {"type": "event_invitation_resolved"})
+    await manager.broadcast_to_event(event.id, {"type": "event_updated", "event_id": event.id}, db)
+
+    return {"message": f"Dołączono do wydarzenia „{event.title}”.", "event_id": event.id, "joined": True}
 
 
 # --- CZAT: WYSYŁANIE WIADOMOŚCI ---
